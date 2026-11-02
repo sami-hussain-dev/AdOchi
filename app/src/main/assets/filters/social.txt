@@ -1,0 +1,39 @@
+# AdOchi Social — ad and tracking endpoints of social networks.
+# These never carry your feed, messages or logins, so the apps keep working.
+
+# Facebook / Meta: Audience Network (Facebook ads shown inside other apps) and the tracking pixel
+an.facebook.com
+pixel.facebook.com
+
+# TikTok
+analytics.tiktok.com
+analytics-sg.tiktok.com
+ads-api.tiktok.com
+business-api.tiktok.com
+
+# X / Twitter
+ads-twitter.com
+ads-api.twitter.com
+analytics.twitter.com
+static.ads-twitter.com
+
+# Snapchat
+tr.snapchat.com
+sc-analytics.appspot.com
+
+# LinkedIn
+px.ads.linkedin.com
+snap.licdn.com
+
+# Pinterest
+ct.pinterest.com
+trk.pinterest.com
+log.pinterest.com
+
+# Reddit
+events.redditmedia.com
+alb.reddit.com
+
+# Yandex / Mail.ru
+mc.yandex.ru
+top-fwz1.mail.ru
