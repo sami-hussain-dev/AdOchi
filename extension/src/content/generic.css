@@ -1,0 +1,40 @@
+/*
+ * Empty boxes left behind by blocked ads. Only names that ad networks themselves use, so normal
+ * page parts with "ad" in their name (header, download, shadow...) are never touched.
+ */
+ins.adsbygoogle,
+.adsbygoogle,
+[id^="google_ads_iframe"],
+[id^="div-gpt-ad"],
+[id^="gpt-ad-"],
+[id^="aswift_"],
+iframe[src*="doubleclick.net"],
+iframe[src*="googlesyndication.com"],
+iframe[src*="amazon-adsystem.com"],
+iframe[src*="adnxs.com"],
+iframe[id^="google_ads_"],
+amp-ad,
+amp-embed[type="taboola"],
+amp-embed[type="outbrain"],
+[data-ad-slot],
+[data-google-query-id],
+div[id^="taboola-"],
+.trc_related_container,
+.OUTBRAIN,
+[data-widget-id^="outbrain"],
+.mgbox,
+[id^="mgid_"],
+[id^="ezoic-pub-ad"],
+.ezoic-ad,
+[id^="adngin-"],
+.adthrive-ad,
+.mediavine-ad,
+[id^="mv-ad-"],
+[data-freestar-ad],
+.revcontent-wrap,
+[id^="rc-widget-"],
+[id^="pubguru-"],
+[id^="bsa-zone_"],
+#carbonads {
+  display: none !important;
+}

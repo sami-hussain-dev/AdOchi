@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AdOchi</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon-48.png" alt="" class="logo">
+    <div class="brand">
+      <h1>AdOchi</h1>
+      <p>Ad &amp; scam blocker</p>
+    </div>
+    <label class="switch big" title="Turn AdOchi on or off everywhere">
+      <input type="checkbox" id="enabled">
+      <span></span>
+    </label>
+  </header>
+
+  <section class="hero" id="hero">
+    <div class="count" id="page">0</div>
+    <div class="caption" id="caption">blocked on this page</div>
+    <div class="total" id="total"></div>
+  </section>
+
+  <section class="card site" id="siteCard">
+    <div class="text">
+      <div class="title" id="site">This page</div>
+      <div class="sub" id="siteSub">Protection is on for this site</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="siteOn">
+      <span></span>
+    </label>
+  </section>
+
+  <h2>Protection</h2>
+  <section class="card list">
+    <label class="row">
+      <span class="dot ads"></span>
+      <span class="text">
+        <span class="title">Ads &amp; trackers</span>
+        <span class="sub" id="adsSub">Banners, pop-ups, video ads, tracking</span>
+      </span>
+      <span class="switch"><input type="checkbox" id="ads"><span></span></span>
+    </label>
+    <label class="row">
+      <span class="dot threats"></span>
+      <span class="text">
+        <span class="title">Scam &amp; malware sites</span>
+        <span class="sub" id="threatsSub">Phishing, fake banks, malware</span>
+      </span>
+      <span class="switch"><input type="checkbox" id="threats"><span></span></span>
+    </label>
+    <label class="row">
+      <span class="dot social"></span>
+      <span class="text">
+        <span class="title">Clean Facebook &amp; YouTube</span>
+        <span class="sub">Sponsored posts, video ad breaks</span>
+      </span>
+      <span class="switch"><input type="checkbox" id="social"><span></span></span>
+    </label>
+  </section>
+
+  <footer>
+    <span>Free · No account · Nothing leaves your device</span>
+    <span id="version"></span>
+  </footer>
+  <a class="credit" href="https://x8code.com/about" target="_blank" rel="noopener">
+    <img src="icons/x8code-32.png" srcset="icons/x8code-64.png 2x" alt="">
+    <span>Made by <b>x8code</b> · Muhammad Sami Hussain</span>
+    <span class="arrow">›</span>
+  </a>
+  <script src="popup.js"></script>
+</body>
+</html>
