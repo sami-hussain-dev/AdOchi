@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AdOchi: free YouTube ad blocker without the black screen</title>
+  <meta name="description" content="AdOchi skips YouTube and Facebook video ads without the black screen, removes sponsored posts and stops scam sites. Free for Android, Chrome, Edge, Brave, Opera and Firefox. Nothing leaves your device.">
+  <meta property="og:title" content="AdOchi: YouTube without ads, without the black screen">
+  <meta property="og:description" content="Free ad, tracker and scam blocker for Android and every major browser. No account, nothing leaves your device.">
+  <meta property="og:image" content="https://sami-hussain-dev.github.io/AdOchi/assets/social-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/icon-128.png">
+  <style>
+    :root {
+      --bg: #0a1013; --card: #121b1f; --line: #22303a; --text: #eaf2f4; --muted: #93a7b0;
+      --brand: #2ee6a8; --android: #3ddc84; --chrome: #4c8bf5; --firefox: #ff7139;
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #f4f8f8; --card: #ffffff; --line: #dde6e8; --text: #102026; --muted: #5d7079; --brand: #0fa37f; }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.55 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    }
+    main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 48px; }
+    header { display: flex; align-items: center; gap: 12px; }
+    header img { width: 48px; height: 48px; border-radius: 13px; }
+    header b { font-size: 22px; }
+    header span { color: var(--muted); font-size: 14px; display: block; margin-top: -4px; }
+    header a { margin-left: auto; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; }
+    h1 { font-size: clamp(32px, 6vw, 54px); line-height: 1.08; margin: 40px 0 12px; letter-spacing: -0.5px; }
+    h1 em { font-style: normal; color: var(--brand); }
+    .lead { font-size: 19px; color: var(--muted); max-width: 680px; margin: 0; }
+    .downloads { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 32px 0 10px; }
+    .dl {
+      display: flex; flex-direction: column; gap: 4px; padding: 18px 20px; border-radius: 18px;
+      border: 1px solid var(--line); background: var(--card); color: var(--text); text-decoration: none;
+      transition: transform .12s, border-color .12s;
+    }
+    .dl:hover { transform: translateY(-2px); border-color: var(--c); }
+    .dl.best { border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 25%, transparent); }
+    .dl .tag { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--c); }
+    .dl strong { font-size: 20px; }
+    .dl small { color: var(--muted); }
+    .dl .btn { margin-top: 10px; align-self: flex-start; padding: 9px 16px; border-radius: 999px; background: var(--c); color: #06130d; font-weight: 700; font-size: 15px; }
+    .note { color: var(--muted); font-size: 14px; }
+    .note a { color: var(--brand); }
+    .banner { width: 100%; border-radius: 18px; margin: 28px 0 8px; border: 1px solid var(--line); }
+    h2 { margin: 44px 0 12px; font-size: 26px; }
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px; }
+    .card h3 { margin: 0 0 8px; font-size: 18px; }
+    .card ol { margin: 0; padding-left: 20px; }
+    .card li { margin: 4px 0; }
+    code { background: color-mix(in srgb, var(--brand) 12%, transparent); padding: 1px 6px; border-radius: 6px; font-size: 14px; }
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    .features div { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+    .features b { display: block; }
+    .features span { color: var(--muted); font-size: 14px; }
+    footer { margin-top: 48px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="assets/icon-128.png" alt="AdOchi logo">
+    <div><b>AdOchi</b><span>by x8code</span></div>
+    <a href="https://github.com/sami-hussain-dev/AdOchi">★ GitHub</a>
+  </header>
+
+  <h1>YouTube without ads.<br>Without the <em>black screen.</em></h1>
+  <p class="lead">Skips YouTube and Facebook video ads, removes sponsored posts and stops scam sites. Free and open source. No account, and nothing ever leaves your device.</p>
+
+  <div class="downloads">
+    <a class="dl" id="dl-android" style="--c: var(--android)" href="https://github.com/sami-hussain-dev/AdOchi/releases/latest/download/AdOchi.apk">
+      <span class="tag">Android 8+</span><strong>Android app</strong><small>Every app and game, plus ad-free YouTube with background play</small><span class="btn">Download APK</span>
+    </a>
+    <a class="dl" id="dl-chrome" style="--c: var(--chrome)" href="https://github.com/sami-hussain-dev/AdOchi/releases/latest/download/AdOchi-Extension-Chrome-Edge-Brave.zip">
+      <span class="tag">Chrome · Edge · Brave · Opera</span><strong>Browser extension</strong><small>Ads, trackers, scam sites, YouTube and Facebook</small><span class="btn">Download ZIP</span>
+    </a>
+    <a class="dl" id="dl-firefox" style="--c: var(--firefox)" href="https://github.com/sami-hussain-dev/AdOchi/releases/latest/download/AdOchi-Extension-Firefox.zip">
+      <span class="tag">Firefox 128+</span><strong>Firefox add-on</strong><small>The same protection for Firefox</small><span class="btn">Download ZIP</span>
+    </a>
+  </div>
+  <p class="note">Each button downloads the newest version straight away. <a href="https://github.com/sami-hussain-dev/AdOchi/releases">All versions</a></p>
+
+  <img class="banner" src="assets/banner.png" alt="AdOchi popup with 2h 14m of video ads saved, next to the scam warning page">
+
+  <h2>Install in 1 minute</h2>
+  <div class="steps">
+    <div class="card" id="steps-android">
+      <h3>Android</h3>
+      <ol>
+        <li>Tap <b>Download APK</b> and open the file.</li>
+        <li>If asked, allow <i>Install unknown apps</i> for your browser.</li>
+        <li>Open AdOchi and tap the big button. The VPN it asks for is the local filter on your phone.</li>
+        <li>Long-press the icon for <b>YouTube (no ads)</b> and <b>Facebook (no ads)</b>.</li>
+      </ol>
+    </div>
+    <div class="card" id="steps-chrome">
+      <h3>Chrome, Edge, Brave, Opera</h3>
+      <ol>
+        <li>Download the ZIP and unzip it (right-click → <i>Extract All</i>).</li>
+        <li>Open <code>chrome://extensions</code> (or <code>edge://extensions</code>).</li>
+        <li>Turn on <b>Developer mode</b>.</li>
+        <li><b>Load unpacked</b> → pick the folder with <code>manifest.json</code> inside.</li>
+      </ol>
+    </div>
+    <div class="card" id="steps-firefox">
+      <h3>Firefox</h3>
+      <ol>
+        <li>Download the Firefox ZIP.</li>
+        <li>Open <code>about:debugging#/runtime/this-firefox</code>.</li>
+        <li><b>Load Temporary Add-on</b> → pick the ZIP.</li>
+      </ol>
+    </div>
+  </div>
+
+  <h2>What it does</h2>
+  <div class="features">
+    <div><b>▶️ YouTube that just plays</b><span>Ads skipped in about 2 seconds, no black screen, no "ad blockers not allowed" pop-up.</span></div>
+    <div><b>🎧 Background play</b><span>On Android, YouTube keeps playing with the screen off.</span></div>
+    <div><b>⏱ Time saved</b><span>See how much ad time you got back, and share it.</span></div>
+    <div><b>📰 Clean Facebook</b><span>Sponsored posts removed, "Ad starting in 5" breaks skipped.</span></div>
+    <div><b>🛡️ Scam shield</b><span>375,000+ scam, phishing and malware sites stopped before they load.</span></div>
+    <div><b>🔒 Nothing leaves your device</b><span>No account, no analytics, no servers of our own.</span></div>
+  </div>
+
+  <footer>
+    <span>Free software under GPL-3.0</span>
+    <a href="https://github.com/sami-hussain-dev/AdOchi">Source code</a>
+    <a href="https://github.com/sami-hussain-dev/AdOchi/issues">Report an ad that got through</a>
+    <a href="https://x8code.com">Made by x8code</a>
+  </footer>
+</main>
+<script>
+  // Highlight the download that fits this device.
+  (function () {
+    var ua = navigator.userAgent;
+    var id = /Android/i.test(ua) ? 'android' : /Firefox\//.test(ua) ? 'firefox' : /Chrome\/|Edg\//.test(ua) ? 'chrome' : null;
+    if (!id) return;
+    document.getElementById('dl-' + id).classList.add('best');
+    var grid = document.querySelector('.downloads');
+    grid.insertBefore(document.getElementById('dl-' + id), grid.firstChild);
+  })();
+</script>
+</body>
+</html>

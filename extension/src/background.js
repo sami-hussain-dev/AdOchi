@@ -15,6 +15,8 @@ const DEFAULTS = {
   social: true, // page cleaner: sponsored posts and video ads on Facebook, YouTube...
   paused: [], // sites where the user turned AdOchi off
   total: 0, // everything blocked since install
+  savedSeconds: 0, // video ad time skipped since install
+  videoAds: 0, // video ads skipped since install
 };
 
 const ALL_TYPES = [
@@ -216,6 +218,8 @@ async function popupState(tabId, url) {
     sitePaused: site != null && s.paused.includes(site),
     page,
     total: s.total + page,
+    savedSeconds: s.savedSeconds,
+    videoAds: s.videoAds,
   };
 }
 
@@ -244,6 +248,11 @@ api.runtime.onMessage.addListener((msg, sender, reply) => {
         const info = await tabInfo(tabId);
         info.hidden += Math.min(msg.count, 500);
         await saveTabInfo(tabId, info);
+        const seconds = Math.min(Number(msg.seconds) || 0, 3600);
+        if (seconds > 0) {
+          const s = await settings();
+          await api.storage.local.set({ savedSeconds: s.savedSeconds + seconds, videoAds: s.videoAds + 1 });
+        }
         return null;
       }
       case 'state':

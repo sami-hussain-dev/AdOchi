@@ -11,6 +11,18 @@ fun formatCount(value: Long): String = when {
 
 fun formatCount(value: Int): String = formatCount(value.toLong())
 
+/** 8_040 → "2h 14m", 95 → "1m 35s", 40 → "40s". */
+fun formatDuration(seconds: Long): String {
+    val h = seconds / 3600
+    val m = (seconds % 3600) / 60
+    val s = seconds % 60
+    return when {
+        h > 0 -> "${h}h ${m}m"
+        m > 0 -> "${m}m ${s}s"
+        else -> "${s}s"
+    }
+}
+
 fun formatAgo(time: Long, now: Long = System.currentTimeMillis()): String {
     if (time == 0L) return "never"
     val minutes = (now - time) / 60_000

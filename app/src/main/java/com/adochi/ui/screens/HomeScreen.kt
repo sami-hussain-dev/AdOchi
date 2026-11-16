@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.MarkChatRead
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Radar
 import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -81,6 +82,7 @@ import com.adochi.ui.components.SiteButton
 import com.adochi.ui.components.SocialSite
 import com.adochi.ui.components.StatTile
 import com.adochi.ui.formatCount
+import com.adochi.ui.formatDuration
 import com.adochi.ui.theme.warning
 import com.adochi.vpn.QuickTile
 import com.adochi.vpn.ShieldState
@@ -192,6 +194,17 @@ fun HomeScreen(
             StatTile("Blocked today", formatCount(stats.blockedToday), Icons.Rounded.Block, colors.primary, Modifier.weight(1f))
             StatTile("Scams stopped", formatCount(stats.threatsToday), Icons.Rounded.GppBad, colors.error, Modifier.weight(1f))
             StatTile("All time", formatCount(stats.blockedTotal), Icons.Rounded.Shield, colors.secondary, Modifier.weight(1f))
+        }
+
+        if (stats.secondsSaved > 0) {
+            Spacer(Modifier.height(10.dp))
+            ActionCard(
+                icon = Icons.Rounded.Timer,
+                tint = colors.warning,
+                title = "${formatDuration(stats.secondsSaved)} of video ads skipped",
+                subtitle = "${formatCount(stats.videoAdsSkipped)} YouTube & Facebook ads in the Clean Browser. Tap to share.",
+                onClick = { shareTimeSaved(context, stats.secondsSaved, stats.videoAdsSkipped) },
+            )
         }
 
         SectionTitle("Ad-free social media")
@@ -310,6 +323,13 @@ fun HomeScreen(
             )
         }
     }
+}
+
+private fun shareTimeSaved(context: Context, seconds: Long, ads: Long) {
+    val text = "AdOchi has skipped ${formatDuration(seconds)} of YouTube & Facebook ads for me (${formatCount(ads)} video ads). " +
+        "Free, no account, nothing leaves your phone: https://github.com/sami-hussain-dev/AdOchi"
+    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+    context.startActivity(Intent.createChooser(send, "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
 @Composable

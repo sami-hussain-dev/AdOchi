@@ -86,6 +86,11 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean("tile_prompted", false)
         set(value) = prefs.edit { putBoolean("tile_prompted", value) }
 
+    /** Clean Browser: keep YouTube playing with the screen off or another app open. */
+    var backgroundPlay: Boolean
+        get() = prefs.getBoolean("background_play", true)
+        set(value) = prefs.edit { putBoolean("background_play", value) }
+
     /** Apps the user marked as trusted in the phone scan. */
     var trustedApps: Set<String>
         get() = prefs.getStringSet("trusted_apps", null)?.toSet() ?: emptySet()

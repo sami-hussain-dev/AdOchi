@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import com.adochi.browser.BackgroundPlayback
 import com.adochi.ui.AppRoot
 import com.adochi.ui.theme.AdOchiTheme
 
@@ -31,6 +32,21 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        BackgroundPlayback.activityVisible = true
+    }
+
+    override fun onStop() {
+        BackgroundPlayback.activityVisible = false
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        if (isFinishing) BackgroundPlayback.stop(this)
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {
