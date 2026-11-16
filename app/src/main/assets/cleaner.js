@@ -12,13 +12,18 @@
     return hostname === domain || hostname.slice(-(domain.length + 1)) === '.' + domain;
   }
 
-  // The app exposes AdOchiBridge; the browser extension listens for this event instead.
-  function report() {
+  /**
+   * Counts one removed ad. `seconds` is the ad time saved (video ads only). The app exposes
+   * AdOchiBridge; the browser extension listens for the event instead.
+   */
+  function report(seconds) {
+    var saved = seconds > 0 && seconds < 3600 ? Math.round(seconds) : 0;
     try {
       AdOchiBridge.onAdHidden();
+      if (saved) AdOchiBridge.onTimeSaved(saved);
       return;
     } catch (e) { /* not in the app */ }
-    try { document.dispatchEvent(new CustomEvent('adochi:hidden')); } catch (e) { /* very old engine */ }
+    try { document.dispatchEvent(new CustomEvent('adochi:hidden', { detail: saved })); } catch (e) { /* very old engine */ }
   }
 
   function hide(el) {
@@ -58,9 +63,9 @@
   var FACEBOOK_VIDEO = {
     // "Ad starting in 5", "Ads starting in 5", "Ad break in 5", "Ad coming up in 5", Urdu/Hindi/Arabic.
     countdown: /\bads?\b(?:\s+break)?\s+(?:starting|starts|will\s+(?:start|play|begin)|begins?|coming(?:\s+up)?)?\s*in\s*(\d{1,2})|(?:اشتہار|विज्ञापन|إعلان)[^|]{0,30}?(\d{1,2})/i,
-    // "Ad · 0:15", "Ad 1 of 2", "Your video will resume after the ad".
-    playing: /(?:^|\|\s*)ads?\s*[·•:]\s*\d|\bad\s+\d+\s+of\s+\d+|your\s+video\s+will\s+(?:resume|continue)|video\s+will\s+resume|(?:resumes?|continues?)\s+after\s+(?:this|the)\s+ad/i,
-    skip: /^(skip|skip ad|skip ads)$/i
+    // "Ad · 0:15", "Ad 1 of 2", "Your video will resume after the ad", "Video will play after ad", Urdu/Hindi/Arabic.
+    playing: /(?:^|\|\s*)ads?\s*[·•:]\s*\d|\bad\s+\d+\s+of\s+\d+|your\s+video\s+will\s+(?:resume|continue)|video\s+will\s+resume|video\s+will\s+(?:play|continue|start)\s+after|(?:resumes?|continues?|plays?)\s+after\s+(?:this\s+|the\s+)?ad\b|(?:^|\|\s*)(?:اشتہار|विज्ञापन|إعلان)\s*[·•:]?\s*\d/i,
+    skip: /^(skip|skip ad|skip ads|skip video ad|اشتہار چھوڑیں)$/i
   };
 
   /**
@@ -74,7 +79,12 @@
     function isLabel(text) {
       if (!text) return false;
       text = clean(text);
-      return text.length > 0 && text.length < 40 && words[text.toLowerCase()] === true;
+      if (!(text.length > 0 && text.length < 60)) return false;
+      var lower = text.toLowerCase();
+      if (words[lower] === true) return true;
+      // "Sponsored · Paid for by …", "Sponsored · 🌐": the label followed by a separator.
+      var cut = lower.search(/\s*[·•|]/);
+      return cut > 0 && words[lower.slice(0, cut)] === true;
     }
 
     // Labels are often written as "Sponsored · 🌐" or padded with invisible characters.
@@ -282,7 +292,7 @@
           s.inAd = true;
           s.muted = video.muted;
           s.rate = video.playbackRate || 1;
-          report();
+          report(isFinite(video.duration) && video.duration < 120 ? video.duration - video.currentTime : 15);
         }
         video.muted = true;
         try { video.playbackRate = 16; } catch (e) { /* rate not allowed */ }
@@ -315,7 +325,7 @@
       s.jumps++;
       try {
         video.currentTime = target;
-        report();
+        report(15); // A Facebook ad break is about 15 seconds.
       } catch (e) { /* not seekable */ }
     }
 
@@ -354,29 +364,44 @@
     };
   }
 
+  /**
+   * YouTube. Removing the ad data from the player response (the old way) is now detected: the player
+   * shows a black screen for the length of the ad, or never starts. So the ad is allowed to load and
+   * is then made invisible: muted, hidden, played at 16x and jumped to its end, usually in well under
+   * a second. Only the "ad blockers are not allowed" message is taken out of the data, and the
+   * page's own functions are wrapped so that they still look untouched.
+   */
   function youtube() {
-    var AD_KEYS = ['adPlacements', 'playerAds', 'adSlots', 'adBreakHeartbeatParams'];
+    var ENFORCEMENT = /enforcementMessageViewModel/;
 
-    function prune(obj) {
-      if (!obj || typeof obj !== 'object') return obj;
-      AD_KEYS.forEach(function (k) { if (k in obj) delete obj[k]; });
-      if (obj.playerResponse && typeof obj.playerResponse === 'object') prune(obj.playerResponse);
-      return obj;
+    // A wrapper that still reports "[native code]", so a page check sees nothing changed.
+    function wrap(owner, name, apply) {
+      var original = owner[name];
+      if (typeof original !== 'function' || typeof Proxy !== 'function') return;
+      try {
+        owner[name] = new Proxy(original, { apply: function (target, self, args) { return apply(target, self, args); } });
+      } catch (e) { /* frozen */ }
     }
 
-    // Strip ad data from the player response before the player reads it.
-    var nativeParse = JSON.parse;
-    JSON.parse = function () { return prune(nativeParse.apply(this, arguments)); };
-    var nativeJson = Response.prototype.json;
-    Response.prototype.json = function () { return nativeJson.apply(this, arguments).then(prune); };
-    try {
-      var initial;
-      Object.defineProperty(window, 'ytInitialPlayerResponse', {
-        configurable: true,
-        get: function () { return initial; },
-        set: function (v) { initial = prune(v); }
-      });
-    } catch (e) { /* already defined */ }
+    function dropEnforcement(obj, depth) {
+      if (!obj || typeof obj !== 'object' || depth > 12) return;
+      var aux = obj.auxiliaryUi;
+      if (aux && aux.messageRenderers && aux.messageRenderers.enforcementMessageViewModel) {
+        delete aux.messageRenderers.enforcementMessageViewModel;
+        report();
+      }
+      for (var k in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] && typeof obj[k] === 'object') dropEnforcement(obj[k], depth + 1);
+      }
+    }
+
+    wrap(JSON, 'parse', function (target, self, args) {
+      var result = Reflect.apply(target, self, args);
+      if (typeof args[0] === 'string' && ENFORCEMENT.test(args[0])) {
+        try { dropEnforcement(result, 0); } catch (e) { /* leave data as is */ }
+      }
+      return result;
+    });
 
     addStyle(hideRule([
       'ytm-promoted-sparkles-web-renderer', 'ytm-promoted-video-renderer', 'ytm-companion-ad-renderer',
@@ -384,49 +409,124 @@
       'ytd-ad-slot-renderer', 'ytd-in-feed-ad-layout-renderer', 'ytd-promoted-sparkles-web-renderer',
       'ytd-banner-promo-renderer', 'ytd-statement-banner-renderer', 'ytd-display-ad-renderer',
       'ytd-companion-slot-renderer', 'ytd-action-companion-ad-renderer', 'ytd-mealbar-promo-renderer',
-      '#player-ads', '#masthead-ad', '.ytp-ad-overlay-container', '.ytp-ad-image-overlay', '.ytp-ad-text-overlay'
+      'ytd-player-legacy-desktop-watch-ads-renderer', 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"]',
+      '#player-ads', '#masthead-ad', '.ytp-ad-overlay-container', '.ytp-ad-image-overlay', '.ytp-ad-text-overlay',
+      '.ytp-featured-product', '.ytp-suggested-action', 'ytd-enforcement-message-view-model'
     ]));
     // :has() in its own rule so older WebViews only drop this one.
     addStyle(hideRule([
       'ytm-rich-item-renderer:has(ad-slot-renderer)', 'ytm-item-section-renderer:has(ad-slot-renderer)',
-      'ytd-rich-item-renderer:has(ytd-ad-slot-renderer)'
+      'ytd-rich-item-renderer:has(ytd-ad-slot-renderer)', 'ytd-rich-section-renderer:has(ytd-statement-banner-renderer)',
+      'tp-yt-paper-dialog:has(ytd-enforcement-message-view-model)'
     ]));
+    // While an ad runs, nothing of it is shown (it is over in a moment anyway).
+    addStyle('.ad-showing video, .ad-interrupting video, .ad-showing .video-ads, .ad-showing .ytp-ad-player-overlay,' +
+      ' .ad-showing .ytp-ad-player-overlay-layout { opacity: 0 !important; }\n');
 
-    // If an ad still starts, mute it, jump to its end and press Skip.
+    var SKIP = '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, .ytp-ad-skip-button-container button, ' +
+      'button[id^="skip-button"], .ytp-ad-skip-button-slot button, ytm-skip-ad-button button';
+
     var inAd = false;
-    var savedMuted = false;
+    var counted = '';
+    var saved = { muted: false, rate: 1 };
     var contentDuration = 0;
-    setInterval(function () {
-      var player = document.querySelector('.ad-showing, .ad-interrupting');
-      var video = document.querySelector('video');
-      if (!player && video && isFinite(video.duration)) contentDuration = video.duration;
-      if (player) {
-        if (!inAd) {
-          inAd = true;
-          savedMuted = video ? video.muted : false;
-          report();
+    var contentSrc = '';
+
+    function playerNode() {
+      return document.querySelector('#movie_player, .html5-video-player');
+    }
+
+    function adShowing(player) {
+      return !!player && /(^|\s)(ad-showing|ad-interrupting)(\s|$)/.test(player.className);
+    }
+
+    /** "0:15" or "1:02:03" to seconds. */
+    function seconds(text) {
+      var m = /(\d+):(\d{2})(?::(\d{2}))?/.exec(text || '');
+      if (!m) return 0;
+      return m[3] ? (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) : (+m[1]) * 60 + (+m[2]);
+    }
+
+    function remainingAdTime(player) {
+      var el = player.querySelector('.ytp-ad-duration-remaining, .ytp-ad-preview-text, .ytp-ad-preview-text-modern, .ytp-ad-text');
+      return el ? seconds(el.textContent) : 0;
+    }
+
+    function tick() {
+      var player = playerNode();
+      var video = player ? player.querySelector('video') : document.querySelector('video');
+      if (!video) return;
+      if (!adShowing(player)) {
+        if (inAd) {
+          inAd = false;
+          video.muted = saved.muted;
+          video.playbackRate = saved.rate;
+          if (video.paused) video.play().catch(function () {});
         }
-        if (video) {
-          video.muted = true;
-          // Ads stitched into the video itself share its length; jumping to the end would skip the video.
-          var stitched = contentDuration > 0 && Math.abs(video.duration - contentDuration) < 1;
-          if (!stitched && isFinite(video.duration) && video.duration > 0) {
-            try { video.currentTime = Math.max(video.duration - 0.1, 0); } catch (e) { /* not seekable yet */ }
-          }
-          video.playbackRate = 16;
+        if (isFinite(video.duration) && video.duration > 0) {
+          contentDuration = video.duration;
+          contentSrc = video.currentSrc || video.src || '';
         }
-        var skip = document.querySelector(
-          '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, .ytp-ad-skip-button-container button'
-        );
-        if (skip) skip.click();
-      } else if (inAd) {
-        inAd = false;
-        if (video) {
-          video.muted = savedMuted;
-          video.playbackRate = 1;
-        }
+        return;
       }
-    }, 300);
+      if (!inAd) {
+        inAd = true;
+        counted = '';
+        saved = { muted: video.muted, rate: video.playbackRate > 2 ? 1 : (video.playbackRate || 1) };
+      }
+      video.muted = true;
+      try { video.playbackRate = 16; } catch (e) { /* rate not allowed */ }
+      var skip = player.querySelector(SKIP) || document.querySelector(SKIP);
+      if (skip) skip.click();
+      if (!(isFinite(video.duration) && video.duration > 0)) return;
+      // An ad stitched into the video stream has the video's own length: jump only past the ad there.
+      var stitched = contentDuration > 0 && Math.abs(video.duration - contentDuration) < 1 &&
+        (video.currentSrc || video.src || '') === contentSrc;
+      // Each ad of a break is counted once, with the time it would have taken.
+      var id = (video.currentSrc || video.src || '') + '|' + video.duration;
+      if (counted !== id) {
+        counted = id;
+        report(stitched ? remainingAdTime(player) : video.duration - video.currentTime);
+      }
+      try {
+        if (!stitched) {
+          if (video.currentTime < video.duration - 0.25) video.currentTime = video.duration - 0.1;
+        } else {
+          var rest = remainingAdTime(player);
+          if (rest > 0) video.currentTime = Math.min(video.currentTime + rest + 0.2, video.duration - 0.5);
+        }
+      } catch (e) { /* not seekable yet */ }
+      if (video.paused) video.play().catch(function () {});
+    }
+
+    /** "Ad blockers are not allowed" pop-up, if it still appears: close it and keep the video going. */
+    function closeEnforcement() {
+      var box = document.querySelector('ytd-enforcement-message-view-model');
+      if (!box) return;
+      var dialog = box.closest('tp-yt-paper-dialog') || box;
+      dialog.remove();
+      document.querySelectorAll('tp-yt-iron-overlay-backdrop').forEach(function (b) { b.remove(); });
+      var video = document.querySelector('#movie_player video, video');
+      if (video && video.paused) video.play().catch(function () {});
+      report();
+    }
+
+    // React the moment the player switches into an ad, and keep checking in case an event is missed.
+    ['loadedmetadata', 'durationchange', 'playing', 'timeupdate'].forEach(function (name) {
+      document.addEventListener(name, function (e) { if (e.target && e.target.tagName === 'VIDEO') tick(); }, true);
+    });
+    var classWatch = new MutationObserver(tick);
+    var watched = null;
+    setInterval(function () {
+      var player = playerNode();
+      if (player && player !== watched) {
+        watched = player;
+        classWatch.disconnect();
+        classWatch.observe(player, { attributes: true, attributeFilter: ['class'] });
+      }
+      tick();
+      closeEnforcement();
+    }, 250);
   }
 
   if (on('youtube.com')) youtube();

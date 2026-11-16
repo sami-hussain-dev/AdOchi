@@ -3,4 +3,8 @@
     <string name="tile_label">AdOchi Shield</string>
     <string name="share_check_link">Check link with AdOchi</string>
     <string name="guard_label">AdOchi Message Guard (checks links for scams)</string>
+    <string name="shortcut_youtube_short">YouTube (no ads)</string>
+    <string name="shortcut_youtube_long">YouTube without ads</string>
+    <string name="shortcut_facebook_short">Facebook (no ads)</string>
+    <string name="shortcut_facebook_long">Facebook without ads</string>
 </resources>

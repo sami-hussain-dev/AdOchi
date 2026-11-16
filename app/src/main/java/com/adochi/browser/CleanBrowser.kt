@@ -31,7 +31,9 @@ object CleanBrowser {
 
     @SuppressLint("SetJavaScriptEnabled")
     fun configure(webView: WebView, state: BrowserState) {
-        val script = webView.context.assets.open("cleaner.js").bufferedReader().use { it.readText() }
+        val assets = webView.context.assets
+        val script = assets.open("cleaner.js").bufferedReader().use { it.readText() } + "\n" +
+            assets.open("media.js").bufferedReader().use { it.readText() }
 
         with(webView.settings) {
             javaScriptEnabled = true
@@ -49,7 +51,8 @@ object CleanBrowser {
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false)
 
-        webView.addJavascriptInterface(JsBridge(state), "AdOchiBridge")
+        webView.addJavascriptInterface(JsBridge(state, webView.context.applicationContext), "AdOchiBridge")
+        BackgroundPlayback.attach(webView)
         val documentStart = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             WebViewCompat.addDocumentStartJavaScript(webView, script, setOf("*"))
@@ -60,14 +63,27 @@ object CleanBrowser {
     }
 }
 
-/** Methods the page script may call. It can only increase counters. */
-class JsBridge(private val state: BrowserState) {
+/** Methods the page script may call: counters, and play/pause for background play. */
+class JsBridge(private val state: BrowserState, private val context: android.content.Context) {
     private val main = Handler(Looper.getMainLooper())
 
     @JavascriptInterface
     fun onAdHidden() {
         Stats.recordBrowserBlocked()
         main.post { state.blockedOnPage++ }
+    }
+
+    @JavascriptInterface
+    fun onTimeSaved(seconds: Int) {
+        Stats.recordTimeSaved(seconds)
+    }
+
+    @JavascriptInterface
+    fun backgroundPlay(): Boolean = BackgroundPlayback.enabled
+
+    @JavascriptInterface
+    fun onMediaState(playing: Boolean, title: String?) {
+        BackgroundPlayback.onMediaState(context, playing, title.orEmpty().take(120))
     }
 }
 
@@ -78,10 +94,16 @@ private class CleanWebViewClient(
 
     private val main = Handler(Looper.getMainLooper())
 
+    /** Host of the page on screen; read on WebView's network thread. */
+    @Volatile private var pageHost: String? = null
+
     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
         if (request.isForMainFrame) return null
         val uri = request.url
         val host = uri.host?.lowercase() ?: return null
+        // YouTube holds the video on a black screen when its own ad requests fail; the ads
+        // themselves are skipped by the page script.
+        if (BrowserRules.isYouTubeAdCheck(pageHost, host)) return null
         if (FilterEngine.check(host) == Verdict.ALLOWED && !BrowserRules.isTrackingUrl(host, uri)) return null
         Stats.recordBrowserBlocked()
         main.post { state.blockedOnPage++ }
@@ -130,6 +152,7 @@ private class CleanWebViewClient(
     }
 
     override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+        pageHost = url?.let { Uri.parse(it).host?.lowercase() }
         if (url != null && !url.startsWith(WarningPage.BASE_URL)) state.url = url
         state.blockedOnPage = 0
         fallbackScript?.let { view.evaluateJavascript(it, null) }
@@ -142,6 +165,7 @@ private class CleanWebViewClient(
     }
 
     override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+        url?.let { pageHost = Uri.parse(it).host?.lowercase() }
         if (url != null && !url.startsWith(WarningPage.BASE_URL) && url != "about:blank") state.url = url
         state.canGoBack = view.canGoBack()
         state.canGoForward = view.canGoForward()
@@ -186,6 +210,15 @@ private class CleanChromeClient(private val state: BrowserState) : WebChromeClie
 
 /** Ad and tracking calls that share a host with real content, so they're matched by path. */
 object BrowserRules {
+    private val YOUTUBE_AD_HOSTS = listOf("youtube.com", "google.com", "doubleclick.net", "googlesyndication.com", "googleadservices.com")
+
+    private fun under(host: String, domain: String) = host == domain || host.endsWith(".$domain")
+
+    /** On a YouTube page, YouTube's own ad and measurement calls (same set as the browser extension). */
+    fun isYouTubeAdCheck(pageHost: String?, host: String): Boolean =
+        pageHost != null && (under(pageHost, "youtube.com") || under(pageHost, "youtube-nocookie.com")) &&
+            YOUTUBE_AD_HOSTS.any { under(host, it) }
+
     fun isTrackingUrl(host: String, uri: Uri): Boolean {
         val path = uri.path ?: return false
         return when {

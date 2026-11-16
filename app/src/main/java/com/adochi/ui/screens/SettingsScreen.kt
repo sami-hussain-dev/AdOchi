@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.OpenInBrowser
+import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.ToggleOn
@@ -78,6 +79,7 @@ fun SettingsScreen(onOpenApps: () -> Unit, onOpenOfflineApps: () -> Unit, onOpen
     val encrypted = remember(tick) { settings.encryptedDns }
     val boot = remember(tick) { settings.startOnBoot }
     val alerts = remember(tick) { settings.threatAlerts }
+    val backgroundPlay = remember(tick) { settings.backgroundPlay }
     val statusNotification = remember(tick) { settings.statusNotification }
     val bypassCount = remember(tick) { settings.bypassApps.size }
     val offlineCount = remember(tick) { settings.noInternetApps.size }
@@ -112,6 +114,14 @@ fun SettingsScreen(onOpenApps: () -> Unit, onOpenOfflineApps: () -> Unit, onOpen
                     Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.onSurfaceVariant)
                 }
             }
+            SettingRow(
+                icon = Icons.Rounded.PlayCircle,
+                title = "Background play",
+                subtitle = "YouTube in the Clean Browser keeps playing with the screen off or another app open, " +
+                    "with play / pause in the notification.",
+                tint = colors.error,
+                onClick = { settings.backgroundPlay = !backgroundPlay },
+            ) { Switch(checked = backgroundPlay, onCheckedChange = { settings.backgroundPlay = it }) }
             SettingRow(
                 icon = Icons.Rounded.SportsEsports,
                 title = "Ad-free offline games",

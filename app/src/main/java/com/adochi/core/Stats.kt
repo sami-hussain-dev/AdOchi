@@ -34,6 +34,9 @@ object Stats {
         val threatsTotal: Long = 0,
         val browserBlocked: Long = 0,
         val scamMessages: Long = 0,
+        /** Seconds of YouTube/Facebook video ads skipped in the Clean Browser. */
+        val secondsSaved: Long = 0,
+        val videoAdsSkipped: Long = 0,
         val recent: List<Entry> = emptyList(),
         val topBlocked: List<Pair<String, Int>> = emptyList(),
         val appsToday: List<AppUsage> = emptyList(),
@@ -62,6 +65,8 @@ object Stats {
     private var threatsTotal = 0L
     private var browserBlocked = 0L
     private var scamMessages = 0L
+    private var secondsSaved = 0L
+    private var videoAdsSkipped = 0L
 
     private val _state = MutableStateFlow(Snapshot())
     val state: StateFlow<Snapshot> = _state.asStateFlow()
@@ -79,6 +84,8 @@ object Stats {
             threatsTotal = prefs.getLong("threats_total", 0)
             browserBlocked = prefs.getLong("browser_blocked", 0)
             scamMessages = prefs.getLong("scam_messages", 0)
+            secondsSaved = prefs.getLong("seconds_saved", 0)
+            videoAdsSkipped = prefs.getLong("video_ads_skipped", 0)
             if (day == today()) {
                 blockedToday = prefs.getLong("blocked_today", 0)
                 threatsToday = prefs.getLong("threats_today", 0)
@@ -122,6 +129,16 @@ object Stats {
     /** Ads, sponsored posts and tracker requests removed inside the Clean Browser. */
     fun recordBrowserBlocked() {
         synchronized(lock) { browserBlocked++ }
+        schedule()
+    }
+
+    /** One video ad skipped in the Clean Browser, with the [seconds] it would have taken. */
+    fun recordTimeSaved(seconds: Int) {
+        if (seconds <= 0 || seconds > 3600) return
+        synchronized(lock) {
+            secondsSaved += seconds
+            videoAdsSkipped++
+        }
         schedule()
     }
 
@@ -171,6 +188,8 @@ object Stats {
                 putLong("threats_total", threatsTotal)
                 putLong("browser_blocked", browserBlocked)
                 putLong("scam_messages", scamMessages)
+                putLong("seconds_saved", secondsSaved)
+                putLong("video_ads_skipped", videoAdsSkipped)
             }
             writeDay(day, appCounts)
         }
@@ -204,6 +223,8 @@ object Stats {
                 threatsTotal = threatsTotal,
                 browserBlocked = browserBlocked,
                 scamMessages = scamMessages,
+                secondsSaved = secondsSaved,
+                videoAdsSkipped = videoAdsSkipped,
                 recent = recent.toList(),
                 topBlocked = blockedCounts.entries.sortedByDescending { it.value }.take(8).map { it.key to it.value },
                 appsToday = appCounts.map { (app, c) -> AppUsage(app, c[0], c[1], c[2]) }.sortedByDescending { it.blocked },

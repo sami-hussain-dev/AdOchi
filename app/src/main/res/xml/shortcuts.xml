@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the AdOchi icon (or drag these to the home screen) to open a site straight in the Clean Browser. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_video"
+        android:shortcutId="youtube"
+        android:shortcutLongLabel="@string/shortcut_youtube_long"
+        android:shortcutShortLabel="@string/shortcut_youtube_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://m.youtube.com/"
+            android:targetClass="com.adochi.MainActivity"
+            android:targetPackage="com.adochi" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_feed"
+        android:shortcutId="facebook"
+        android:shortcutLongLabel="@string/shortcut_facebook_long"
+        android:shortcutShortLabel="@string/shortcut_facebook_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://m.facebook.com/"
+            android:targetClass="com.adochi.MainActivity"
+            android:targetPackage="com.adochi" />
+    </shortcut>
+</shortcuts>

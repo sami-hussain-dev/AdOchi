@@ -70,6 +70,60 @@ h1 { margin: 0; font-size: 17px; font-weight: 700; }
 .hero.off { background: var(--card); }
 .hero.off .count { color: var(--off); font-size: 26px; padding: 8px 0 2px; }
 
+.saved {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.saved .clock {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  color: #f5b83d;
+  background: rgba(245, 184, 61, 0.14);
+  flex: none;
+}
+.saved .title { font-size: 15px; }
+.share {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1;
+  font-family: inherit;
+  color: #06231a;
+  background: var(--brand);
+  cursor: pointer;
+}
+.share:hover { filter: brightness(1.08); }
+.share-menu {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: -4px 0 10px;
+}
+.share-menu[hidden] { display: none; }
+.share-menu a, .share-menu button {
+  padding: 8px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.2;
+  font-family: inherit;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.share-menu a:hover, .share-menu button:hover { border-color: var(--brand); }
+
 .card {
   background: var(--card);
   border: 1px solid var(--line);

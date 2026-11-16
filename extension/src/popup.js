@@ -6,6 +6,45 @@ const $ = (id) => document.getElementById(id);
 let tab = { id: null, url: '' };
 let site = null;
 
+const REPO = 'https://github.com/sami-hussain-dev/AdOchi';
+
+/** 8040 -> "2h 14m", 95 -> "1m 35s". */
+function formatDuration(seconds) {
+  const s = Math.round(seconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s % 60}s`;
+  return `${s}s`;
+}
+
+function shareText(state) {
+  return `AdOchi has skipped ${formatDuration(state.savedSeconds)} of YouTube & Facebook ads for me ` +
+    `(${formatCount(state.videoAds)} video ads). Free, no account, nothing leaves your device: ${REPO}`;
+}
+
+function renderSaved(state) {
+  const has = state.savedSeconds > 0;
+  $('savedTime').textContent = has ? `${formatDuration(state.savedSeconds)} saved` : 'No video ads yet';
+  $('savedSub').textContent = has
+    ? `${formatCount(state.videoAds)} YouTube & Facebook video ${state.videoAds === 1 ? 'ad' : 'ads'} skipped`
+    : 'Skipped YouTube & Facebook ads add up here';
+  $('share').hidden = !has;
+  if (!has) return;
+  const text = shareText(state);
+  $('shareWa').href = 'https://wa.me/?text=' + encodeURIComponent(text);
+  $('shareX').href = 'https://x.com/intent/post?text=' + encodeURIComponent(text);
+  $('shareFb').href = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(REPO) + '&quote=' + encodeURIComponent(text);
+  $('shareCopy').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      $('shareCopy').textContent = 'Copied';
+    } catch (e) {
+      $('shareCopy').textContent = 'Not allowed';
+    }
+  };
+}
+
 function formatCount(n) {
   if (n < 1000) return String(n);
   if (n < 1e6) return (n / 1000).toFixed(n < 1e4 ? 1 : 0).replace(/\.0$/, '') + 'K';
@@ -51,6 +90,7 @@ function render(state) {
     $('caption').textContent = state.page === 1 ? 'ad or tracker blocked on this page' : 'ads & trackers blocked on this page';
   }
   $('total').textContent = state.total > 0 ? `${formatCount(state.total)} blocked since you installed AdOchi` : '';
+  renderSaved(state);
 
   const card = $('siteCard');
   card.classList.toggle('na', !state.site);
@@ -85,6 +125,7 @@ async function main() {
       render(await send({ type: 'option', name, value: e.target.checked }));
     });
   }
+  $('share').addEventListener('click', () => { $('shareMenu').hidden = !$('shareMenu').hidden; });
   $('siteOn').addEventListener('change', async (e) => {
     const state = await send({ type: 'site', site, paused: !e.target.checked });
     render(state);

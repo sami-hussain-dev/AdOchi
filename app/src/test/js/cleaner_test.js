@@ -90,12 +90,14 @@ for (const text of ['Add to story in 5 minutes', 'Read in 5 min', 'Download in 3
   assert.ok(!video.countdown.test(text), 'false countdown: ' + text);
 }
 
-for (const text of ['Ad · 0:15', 'Ad: 5', 'Live | Ad · 0:12', 'Ad 1 of 2', 'Your video will resume after the ad', 'Video will resume in 5']) {
+for (const text of ['Ad · 0:15', 'Ad: 5', 'Live | Ad · 0:12', 'Ad 1 of 2', 'Your video will resume after the ad', 'Video will resume in 5',
+  'Video will play after ad', 'Your video plays after this ad', 'اشتہار · 0:12']) {
   assert.ok(video.playing.test(text), 'ad not seen: ' + text);
 }
-for (const text of ['Ads Manager', 'Admin: 5 posts', 'Add a comment', 'Shared an ad campaign · 2h', 'Bad · 3']) {
+for (const text of ['Ads Manager', 'Admin: 5 posts', 'Add a comment', 'Shared an ad campaign · 2h', 'Bad · 3',
+  'This video will play in HD', 'Plays after admin approval', 'Video will start soon']) {
   assert.ok(!video.playing.test(text), 'false ad: ' + text);
 }
-assert.ok(video.skip.test('Skip Ad') && !video.skip.test('Skip intro song'));
+assert.ok(video.skip.test('Skip Ad') && video.skip.test('Skip video ad') && !video.skip.test('Skip intro song'));
 
 console.log('cleaner.js: all checks passed');

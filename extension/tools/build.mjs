@@ -64,6 +64,13 @@ const PATH_RULES = [
   '||google.com/pagead/',
 ];
 
+// YouTube checks that its own ad requests go through; when they fail, it holds the video on a black
+// screen. The page cleaner skips the ads themselves, so on YouTube pages these requests are let through.
+const YOUTUBE_ALLOW = {
+  initiatorDomains: ['youtube.com', 'youtube-nocookie.com'],
+  requestDomains: ['youtube.com', 'google.com', 'doubleclick.net', 'googlesyndication.com', 'googleadservices.com'],
+};
+
 const NOT_MAIN_FRAME = [
   'sub_frame', 'stylesheet', 'script', 'image', 'font', 'object', 'xmlhttprequest', 'ping', 'csp_report',
   'media', 'websocket', 'other',
@@ -240,18 +247,20 @@ async function main() {
   const rules = {
     ads: domainRules(ads, 1, NOT_MAIN_FRAME),
     threats: domainRules(threats, 1, ALL_TYPES),
-    paths: PATH_RULES.map((urlFilter, i) => ({
-      id: i + 1,
-      priority: 1,
-      action: { type: 'block' },
-      condition: { urlFilter, resourceTypes: NOT_MAIN_FRAME },
-    })),
+    paths: [
+      ...PATH_RULES.map((urlFilter, i) => ({
+        id: i + 1,
+        priority: 1,
+        action: { type: 'block' },
+        condition: { urlFilter, resourceTypes: NOT_MAIN_FRAME },
+      })),
+      { id: 1000, priority: 50, action: { type: 'allow' }, condition: { ...YOUTUBE_ALLOW, resourceTypes: NOT_MAIN_FRAME } },
+    ],
   };
   const stats = { ads: ads.size, threats: threats.size, built: new Date().toISOString().slice(0, 10) };
 
   const cleaner = fs.readFileSync(path.join(APP_ASSETS, 'cleaner.js'), 'utf8');
   fs.rmSync(DIST, { recursive: true, force: true });
-  const version = JSON.parse(fs.readFileSync(path.join(SRC, 'manifest.json'), 'utf8')).version;
   for (const browser of ['chrome', 'firefox']) {
     const out = path.join(DIST, browser);
     copyDir(SRC, out);
@@ -262,7 +271,8 @@ async function main() {
       fs.writeFileSync(path.join(out, 'rules', id + '.json'), JSON.stringify(list));
     }
     fs.writeFileSync(path.join(out, 'rules', 'stats.json'), JSON.stringify(stats));
-    zip(out, path.join(DIST, `adochi-${browser}-${version}.zip`));
+    // Same names as the release files, so the README's "latest" download links keep working.
+    zip(out, path.join(DIST, browser === 'firefox' ? 'AdOchi-Extension-Firefox.zip' : 'AdOchi-Extension-Chrome-Edge-Brave.zip'));
   }
 
   console.log(`\nBlocked: ${stats.ads.toLocaleString()} ad/tracker sites, ${stats.threats.toLocaleString()} scam sites`);
