@@ -411,7 +411,7 @@
       'ytd-companion-slot-renderer', 'ytd-action-companion-ad-renderer', 'ytd-mealbar-promo-renderer',
       'ytd-player-legacy-desktop-watch-ads-renderer', 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"]',
       '#player-ads', '#masthead-ad', '.ytp-ad-overlay-container', '.ytp-ad-image-overlay', '.ytp-ad-text-overlay',
-      '.ytp-featured-product', '.ytp-suggested-action', 'ytd-enforcement-message-view-model'
+      '.ytp-featured-product', '.ytp-suggested-action', 'tp-yt-paper-dialog ytd-enforcement-message-view-model'
     ]));
     // :has() in its own rule so older WebViews only drop this one.
     addStyle(hideRule([
@@ -423,14 +423,14 @@
     addStyle('.ad-showing video, .ad-interrupting video, .ad-showing .video-ads, .ad-showing .ytp-ad-player-overlay,' +
       ' .ad-showing .ytp-ad-player-overlay-layout { opacity: 0 !important; }\n');
 
-    var SKIP = '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, .ytp-ad-skip-button-container button, ' +
-      'button[id^="skip-button"], .ytp-ad-skip-button-slot button, ytm-skip-ad-button button';
+    // Ads are muted, hidden and fast-forwarded, nothing more. YouTube ignores scripted clicks on Skip,
+    // and jumping to the end of an ad or playing it at 16x is what gets an account flagged.
+    var AD_RATE = 10;
 
     var inAd = false;
     var counted = '';
     var saved = { muted: false, rate: 1 };
-    var contentDuration = 0;
-    var contentSrc = '';
+    var blockedSent = false;
 
     function playerNode() {
       return document.querySelector('#movie_player, .html5-video-player');
@@ -460,59 +460,61 @@
         if (inAd) {
           inAd = false;
           video.muted = saved.muted;
-          video.playbackRate = saved.rate;
-          if (video.paused) video.play().catch(function () {});
-        }
-        if (isFinite(video.duration) && video.duration > 0) {
-          contentDuration = video.duration;
-          contentSrc = video.currentSrc || video.src || '';
+          // Only undo our own speed, so a speed YouTube or the viewer set afterwards stays.
+          if (video.playbackRate === AD_RATE) video.playbackRate = saved.rate;
         }
         return;
       }
       if (!inAd) {
         inAd = true;
         counted = '';
-        saved = { muted: video.muted, rate: video.playbackRate > 2 ? 1 : (video.playbackRate || 1) };
+        saved = { muted: video.muted, rate: video.playbackRate === AD_RATE ? 1 : (video.playbackRate || 1) };
       }
-      video.muted = true;
-      try { video.playbackRate = 16; } catch (e) { /* rate not allowed */ }
-      var skip = player.querySelector(SKIP) || document.querySelector(SKIP);
-      if (skip) skip.click();
+      if (!video.muted) video.muted = true;
+      if (video.playbackRate !== AD_RATE) {
+        try { video.playbackRate = AD_RATE; } catch (e) { /* rate not allowed */ }
+      }
       if (!(isFinite(video.duration) && video.duration > 0)) return;
-      // An ad stitched into the video stream has the video's own length: jump only past the ad there.
-      var stitched = contentDuration > 0 && Math.abs(video.duration - contentDuration) < 1 &&
-        (video.currentSrc || video.src || '') === contentSrc;
       // Each ad of a break is counted once, with the time it would have taken.
       var id = (video.currentSrc || video.src || '') + '|' + video.duration;
       if (counted !== id) {
         counted = id;
-        report(stitched ? remainingAdTime(player) : video.duration - video.currentTime);
+        var rest = remainingAdTime(player);
+        // An ad stitched into the stream reports the whole video's length, so the ad's own timer is used.
+        report(rest > 0 ? rest : Math.min(video.duration - video.currentTime, 180));
       }
-      try {
-        if (!stitched) {
-          if (video.currentTime < video.duration - 0.25) video.currentTime = video.duration - 0.1;
-        } else {
-          var rest = remainingAdTime(player);
-          if (rest > 0) video.currentTime = Math.min(video.currentTime + rest + 0.2, video.duration - 0.5);
-        }
-      } catch (e) { /* not seekable yet */ }
-      if (video.paused) video.play().catch(function () {});
     }
 
-    /** "Ad blockers are not allowed" pop-up, if it still appears: close it and keep the video going. */
+    /** "Ad blockers are not allowed" pop-up over a playing video: close it and keep the video going. */
     function closeEnforcement() {
-      var box = document.querySelector('ytd-enforcement-message-view-model');
+      var box = document.querySelector('tp-yt-paper-dialog ytd-enforcement-message-view-model');
       if (!box) return;
-      var dialog = box.closest('tp-yt-paper-dialog') || box;
-      dialog.remove();
+      box.closest('tp-yt-paper-dialog').remove();
       document.querySelectorAll('tp-yt-iron-overlay-backdrop').forEach(function (b) { b.remove(); });
       var video = document.querySelector('#movie_player video, video');
       if (video && video.paused) video.play().catch(function () {});
       report();
     }
 
+    var BLOCKED_TEXT = /ad ?blockers? (violate|are not allowed)|allowlisted|video playback is blocked/i;
+
+    /**
+     * YouTube refused to play the video at all. Nothing on the page can undo that, so AdOchi tells the
+     * extension, which steps back from YouTube for a while and reloads the video.
+     */
+    function checkBlocked() {
+      if (blockedSent) return;
+      var err = document.querySelector('#movie_player .ytp-error, #error-screen, yt-playability-error-supported-renderers');
+      if (!err || !BLOCKED_TEXT.test(err.textContent || '')) return;
+      blockedSent = true;
+      try {
+        if (window.AdOchiBridge && typeof window.AdOchiBridge.onYouTubeBlocked === 'function') window.AdOchiBridge.onYouTubeBlocked();
+      } catch (e) { /* app without this hook */ }
+      document.dispatchEvent(new CustomEvent('adochi:ytblocked'));
+    }
+
     // React the moment the player switches into an ad, and keep checking in case an event is missed.
-    ['loadedmetadata', 'durationchange', 'playing', 'timeupdate'].forEach(function (name) {
+    ['loadedmetadata', 'durationchange', 'playing'].forEach(function (name) {
       document.addEventListener(name, function (e) { if (e.target && e.target.tagName === 'VIDEO') tick(); }, true);
     });
     var classWatch = new MutationObserver(tick);
@@ -525,6 +527,7 @@
         classWatch.observe(player, { attributes: true, attributeFilter: ['class'] });
       }
       tick();
+      checkBlocked();
       closeEnforcement();
     }, 250);
   }
