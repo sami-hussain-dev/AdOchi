@@ -31,7 +31,7 @@ In 2025–2026 YouTube started punishing ad blockers. When a blocker deletes the
 
 For signed-in viewers YouTube went further: *"Ad blockers violate YouTube's Terms of Service. Video playback is blocked"*. It looks for blocked ad requests, hidden ad boxes, ads jumped to their end and *Skip* buttons pressed by a script.
 
-AdOchi 1.2 gives YouTube none of that. On YouTube it blocks no requests and hides no ad boxes in the player. The ad loads as normal and runs **muted, invisible and 10× fast**, so a 15-second ad is over in 1.5 s. If YouTube still refuses to play, AdOchi notices, steps back from YouTube for 6 hours and reloads the video, so **the video always plays**.
+AdOchi gives YouTube none of that. On YouTube it blocks no requests and hides no ad boxes in the player. The ad loads as normal and runs **muted, invisible and 16× fast**, so a 15-second ad is over in about 1 s. When YouTube's player puts the ad back to normal speed or turns the sound on, AdOchi keeps the ad fast and silent, and the player still reads back the values it set. If YouTube still refuses to play, AdOchi notices, steps back from YouTube for 6 hours and reloads the video, so **the video always plays**.
 
 **Measured in Chrome on the same videos (November 2026):**
 
@@ -39,13 +39,19 @@ AdOchi 1.2 gives YouTube none of that. On YouTube it blocks no requests and hide
 |---|---|
 | No blocker | 6 s + 66 s of ads |
 | Blockers that delete YouTube's ad data (AdOchi 1.0 too) | **8–10 s black screen** (signed-in users report it never starting) |
-| **AdOchi 1.2** | **No black screen.** Ads muted, hidden and fast-forwarded 10×: a 15 s ad is over in 1.5 s. No ad → video at once |
+| **AdOchi 1.3** | **No black screen.** Ads muted, hidden and fast-forwarded 16×: a 15 s ad is over in about 1 s. No ad → video at once |
 
 And there's more than YouTube: fake ads and scam links are one of the main ways people lose their bank logins and OTP codes. AdOchi blocks them before they load, on your phone and in your browser.
 
+## What's new in 1.3
+
+- **Faster YouTube ads.** Ads now run at 16×, the top speed browsers allow, instead of 10×.
+- **Ads stay fast for the whole break.** YouTube's player sets an ad back to normal speed and turns its sound on when it starts and between the ads of a break. AdOchi 1.2 then played those ads at normal speed. 1.3 holds the ad at 16× and muted from start to end.
+- After the ads, your own speed (for example 1.5×) and sound come back.
+
 ## What's new in 1.2
 
-- **YouTube works again, signed in too.** No black screen and no *"Video playback is blocked"*. Ads run muted, invisible and 10× fast, and nothing YouTube checks for is blocked or hidden.
+- **YouTube works again, signed in too.** No black screen and no *"Video playback is blocked"*. Ads run muted, invisible and fast, and nothing YouTube checks for is blocked or hidden.
 - **YouTube safe mode.** If YouTube still refuses to play, AdOchi steps back from YouTube for 6 hours and reloads the video, so it always plays. The popup shows it, with a *Skip again* button.
 - The *"Ad blockers are not allowed"* pop-up over a playing video is still closed for you.
 - **Time saved counter.** See how much ad time AdOchi has skipped for you (*"2h 14m saved"*) and share it on WhatsApp, X or Facebook in one tap.
