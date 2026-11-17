@@ -367,9 +367,9 @@
   /**
    * YouTube. Removing the ad data from the player response (the old way) is now detected: the player
    * shows a black screen for the length of the ad, or never starts. So the ad is allowed to load and
-   * is then made invisible: muted, hidden, played at 16x and jumped to its end, usually in well under
-   * a second. Only the "ad blockers are not allowed" message is taken out of the data, and the
-   * page's own functions are wrapped so that they still look untouched.
+   * is then made invisible: muted, hidden and played at 16x. Only the "ad blockers are not allowed"
+   * message is taken out of the data, and the page's own functions are wrapped so that they still
+   * look untouched.
    */
   function youtube() {
     var ENFORCEMENT = /enforcementMessageViewModel/;
@@ -423,14 +423,90 @@
     addStyle('.ad-showing video, .ad-interrupting video, .ad-showing .video-ads, .ad-showing .ytp-ad-player-overlay,' +
       ' .ad-showing .ytp-ad-player-overlay-layout { opacity: 0 !important; }\n');
 
-    // Ads are muted, hidden and fast-forwarded, nothing more. YouTube ignores scripted clicks on Skip,
-    // and jumping to the end of an ad or playing it at 16x is what gets an account flagged.
-    var AD_RATE = 10;
+    // Ads are muted, hidden and played at the top speed the browser allows (16x in Chrome, Edge,
+    // Firefox and the Android WebView), so a 15 s ad is over in about 1 s. No seeking and no clicks:
+    // YouTube ignores scripted clicks on Skip, and an ad that jumps to its end is easy to spot.
+    var AD_RATES = [16, 10, 8, 4, 2];
+    var adRate = AD_RATES[0];
 
-    var inAd = false;
+    /*
+     * While an ad runs, its speed and sound belong to AdOchi. YouTube's player puts them back to 1x
+     * and sound on when an ad starts and between the ads of a break. Those writes are kept aside
+     * instead of applied, and read back exactly as written, so the ad never drops to 1x or makes a
+     * sound and the player only ever sees the values it set itself. The page's own getters and setters
+     * are wrapped so that they still report "[native code]".
+     */
+    var held = typeof WeakMap === 'function' ? new WeakMap() : null;
+    var media = window.HTMLMediaElement && HTMLMediaElement.prototype;
+    var native = {};
+    ['playbackRate', 'muted'].forEach(function (prop) {
+      var d = media && Object.getOwnPropertyDescriptor(media, prop);
+      if (!held || typeof Proxy !== 'function' || !d || !d.get || !d.set || !d.configurable) return;
+      try {
+        Object.defineProperty(media, prop, {
+          configurable: true,
+          enumerable: d.enumerable,
+          get: new Proxy(d.get, { apply: function (target, self, args) {
+            var state = held.get(self);
+            return state ? state.want[prop] : Reflect.apply(target, self, args);
+          } }),
+          set: new Proxy(d.set, { apply: function (target, self, args) {
+            var state = held.get(self);
+            if (!state) return Reflect.apply(target, self, args);
+            var value = prop === 'muted' ? !!args[0] : +args[0];
+            if (prop === 'playbackRate' && !(value > 0 && isFinite(value))) return Reflect.apply(target, self, args);
+            state.want[prop] = value;
+            state.wrote[prop] = true;
+          } })
+        });
+        native[prop] = d;
+      } catch (e) { /* left as it is: the ad is then simply set again on every change */ }
+    });
+
+    function getNative(video, prop) {
+      return native[prop] ? native[prop].get.call(video) : video[prop];
+    }
+
+    function setNative(video, prop, value) {
+      if (native[prop]) native[prop].set.call(video, value); else video[prop] = value;
+    }
+
+    /** Top speed, or the next one down where the browser refuses it. */
+    function speedUp(video) {
+      for (;;) {
+        try { setNative(video, 'playbackRate', adRate); return; } catch (e) { /* not allowed here */ }
+        var i = AD_RATES.indexOf(adRate);
+        if (i < 0 || i === AD_RATES.length - 1) return;
+        adRate = AD_RATES[i + 1];
+      }
+    }
+
+    var ad = null; // { video, saved, want, wrote } while an ad runs
+    // The viewer's speed for the video. YouTube sets 1x as an ad starts, before AdOchi sees the ad.
+    var videoRate = 1;
     var counted = '';
-    var saved = { muted: false, rate: 1 };
     var blockedSent = false;
+
+    function startAd(video) {
+      var rate = videoRate;
+      var muted = getNative(video, 'muted');
+      ad = { video: video, saved: { playbackRate: rate, muted: muted }, want: { playbackRate: rate, muted: muted }, wrote: {} };
+      if (held) held.set(video, ad);
+      counted = '';
+    }
+
+    function endAd() {
+      var state = ad;
+      ad = null;
+      if (held) held.delete(state.video);
+      var video = state.video;
+      // The sound the player last asked for. For speed, a speed it asked for itself (the viewer's
+      // choice for the video), otherwise the speed from before the ad.
+      var rate = state.wrote.playbackRate && state.want.playbackRate !== 1 ? state.want.playbackRate : state.saved.playbackRate;
+      try { setNative(video, 'muted', state.want.muted); } catch (e) { /* gone */ }
+      // Only undo our own speed, so a speed set some other way stays.
+      try { if (getNative(video, 'playbackRate') === adRate) setNative(video, 'playbackRate', rate); } catch (e) { /* gone */ }
+    }
 
     function playerNode() {
       return document.querySelector('#movie_player, .html5-video-player');
@@ -455,25 +531,16 @@
     function tick() {
       var player = playerNode();
       var video = player ? player.querySelector('video') : document.querySelector('video');
-      if (!video) return;
-      if (!adShowing(player)) {
-        if (inAd) {
-          inAd = false;
-          video.muted = saved.muted;
-          // Only undo our own speed, so a speed YouTube or the viewer set afterwards stays.
-          if (video.playbackRate === AD_RATE) video.playbackRate = saved.rate;
-        }
+      if (!adShowing(player) || !video) {
+        if (ad) endAd();
+        var now = video ? getNative(video, 'playbackRate') : 0;
+        if (now > 0 && now !== adRate) videoRate = now;
         return;
       }
-      if (!inAd) {
-        inAd = true;
-        counted = '';
-        saved = { muted: video.muted, rate: video.playbackRate === AD_RATE ? 1 : (video.playbackRate || 1) };
-      }
-      if (!video.muted) video.muted = true;
-      if (video.playbackRate !== AD_RATE) {
-        try { video.playbackRate = AD_RATE; } catch (e) { /* rate not allowed */ }
-      }
+      if (ad && ad.video !== video) endAd();
+      if (!ad) startAd(video);
+      if (!getNative(video, 'muted')) setNative(video, 'muted', true);
+      if (getNative(video, 'playbackRate') !== adRate) speedUp(video);
       if (!(isFinite(video.duration) && video.duration > 0)) return;
       // Each ad of a break is counted once, with the time it would have taken.
       var id = (video.currentSrc || video.src || '') + '|' + video.duration;
@@ -514,7 +581,9 @@
     }
 
     // React the moment the player switches into an ad, and keep checking in case an event is missed.
-    ['loadedmetadata', 'durationchange', 'playing'].forEach(function (name) {
+    // ratechange and volumechange catch a speed or sound reset where holding them is not possible,
+    // loadstart the next ad of a break.
+    ['loadstart', 'loadedmetadata', 'durationchange', 'play', 'playing', 'ratechange', 'volumechange'].forEach(function (name) {
       document.addEventListener(name, function (e) { if (e.target && e.target.tagName === 'VIDEO') tick(); }, true);
     });
     var classWatch = new MutationObserver(tick);
