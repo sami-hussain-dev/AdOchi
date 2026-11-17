@@ -45,6 +45,13 @@ function renderSaved(state) {
   };
 }
 
+function renderYouTubeSafe(state) {
+  $('ytSafe').hidden = !state.ytSafeUntil;
+  if (!state.ytSafeUntil) return;
+  const until = new Date(state.ytSafeUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  $('ytSafeSub').textContent = `YouTube refused to play videos while ads were being skipped, so its ads play normally until ${until}. Then AdOchi tries again by itself.`;
+}
+
 function formatCount(n) {
   if (n < 1000) return String(n);
   if (n < 1e6) return (n / 1000).toFixed(n < 1e4 ? 1 : 0).replace(/\.0$/, '') + 'K';
@@ -91,6 +98,7 @@ function render(state) {
   }
   $('total').textContent = state.total > 0 ? `${formatCount(state.total)} blocked since you installed AdOchi` : '';
   renderSaved(state);
+  renderYouTubeSafe(state);
 
   const card = $('siteCard');
   card.classList.toggle('na', !state.site);
@@ -126,6 +134,10 @@ async function main() {
     });
   }
   $('share').addEventListener('click', () => { $('shareMenu').hidden = !$('shareMenu').hidden; });
+  $('ytRetry').addEventListener('click', async () => {
+    render(await send({ type: 'ytretry' }));
+    if (tab.id != null && /youtube\.com/.test(tab.url)) api.tabs.reload(tab.id);
+  });
   $('siteOn').addEventListener('change', async (e) => {
     const state = await send({ type: 'site', site, paused: !e.target.checked });
     render(state);

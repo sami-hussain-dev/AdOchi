@@ -17,7 +17,13 @@ const DEFAULTS = {
   total: 0, // everything blocked since install
   savedSeconds: 0, // video ad time skipped since install
   videoAds: 0, // video ads skipped since install
+  ytSafeUntil: 0, // YouTube refused to play with AdOchi active: until then AdOchi stays out of YouTube
 };
+
+// YouTube runs its own ad-blocker checks, so there AdOchi blocks no requests and adds no styles;
+// only the page cleaner works there, and it steps back for a while if YouTube still refuses to play.
+const YOUTUBE_PAGES = ['*://*.youtube.com/*', '*://youtube.com/*', '*://*.youtube-nocookie.com/*'];
+const YT_SAFE_HOURS = 6;
 
 const ALL_TYPES = [
   'main_frame', 'sub_frame', 'stylesheet', 'script', 'image', 'font', 'object',
@@ -27,6 +33,7 @@ const SITE_PRIORITY = 100;
 const PROCEED_PRIORITY = 200;
 const SCRIPT_CLEANER = 'adochi-cleaner';
 const SCRIPT_BRIDGE = 'adochi-bridge';
+const SCRIPT_GENERIC_CSS = 'adochi-generic-css';
 
 async function settings() {
   return api.storage.local.get(DEFAULTS);
@@ -83,20 +90,29 @@ async function registerScripts(s) {
     scripts.push({
       id: SCRIPT_BRIDGE,
       js: ['content/bridge.js'],
-      css: ['content/generic.css'],
       matches,
       excludeMatches,
       runAt: 'document_start',
       allFrames: true,
       persistAcrossSessions: true,
     });
+    scripts.push({
+      id: SCRIPT_GENERIC_CSS,
+      css: ['content/generic.css'],
+      matches,
+      excludeMatches: [...excludeMatches, ...YOUTUBE_PAGES],
+      runAt: 'document_start',
+      allFrames: true,
+      persistAcrossSessions: true,
+    });
   }
   if (s.ads && s.social) {
+    const ytSafe = s.ytSafeUntil > Date.now();
     scripts.push({
       id: SCRIPT_CLEANER,
       js: ['content/cleaner.js'],
       matches,
-      excludeMatches,
+      excludeMatches: ytSafe ? [...excludeMatches, ...YOUTUBE_PAGES] : excludeMatches,
       runAt: 'document_start',
       // Must share the page's JavaScript to strip ad data before the video player reads it.
       world: 'MAIN',
@@ -142,6 +158,7 @@ async function closePage(tabId) {
 
 api.webNavigation.onCommitted.addListener(async (details) => {
   if (details.frameId !== 0) return;
+  await endYouTubeSafeModeIfDue();
   const info = await closePage(details.tabId);
   const safe = /^https?:/.test(details.url) ? details.url : info.lastSafe;
   await saveTabInfo(details.tabId, { since: Date.now(), hidden: 0, lastSafe: safe });
@@ -188,6 +205,25 @@ async function goBack(tabId) {
   else await api.tabs.remove(tabId);
 }
 
+// ---- YouTube safe mode ----------------------------------------------------------------------
+
+/** YouTube would not play with AdOchi active: stay out of YouTube for a while and reload the video. */
+async function youTubeBlocked(tabId) {
+  const s = await settings();
+  if (s.ytSafeUntil > Date.now()) return;
+  await api.storage.local.set({ ytSafeUntil: Date.now() + YT_SAFE_HOURS * 3600 * 1000 });
+  await apply();
+  if (tabId != null) await api.tabs.reload(tabId);
+}
+
+async function endYouTubeSafeModeIfDue() {
+  const { ytSafeUntil } = await settings();
+  if (ytSafeUntil && ytSafeUntil <= Date.now()) {
+    await api.storage.local.set({ ytSafeUntil: 0 });
+    await apply();
+  }
+}
+
 // ---- Popup -------------------------------------------------------------------------------------
 
 /** The site key used for pausing: the host without "www.", so it covers the whole site. */
@@ -220,6 +256,7 @@ async function popupState(tabId, url) {
     total: s.total + page,
     savedSeconds: s.savedSeconds,
     videoAds: s.videoAds,
+    ytSafeUntil: s.ytSafeUntil > Date.now() ? s.ytSafeUntil : 0,
   };
 }
 
@@ -255,6 +292,14 @@ api.runtime.onMessage.addListener((msg, sender, reply) => {
         }
         return null;
       }
+      case 'ytblocked':
+        if (tabId != null && /^https:\/\/([a-z0-9-]+\.)*youtube(-nocookie)?\.com\//.test(sender.url || '')) await youTubeBlocked(tabId);
+        return null;
+      case 'ytretry':
+        if (!fromPopup) return null;
+        await api.storage.local.set({ ytSafeUntil: 0 });
+        await apply();
+        return popupState(msg.tabId, msg.url);
       case 'state':
         if (!fromPopup) return null;
         return popupState(msg.tabId, msg.url);

@@ -19,6 +19,18 @@
     }
   }
 
+  // YouTube refused to play the video; the background decides what to do (once per page).
+  let blockedSent = false;
+  document.addEventListener('adochi:ytblocked', () => {
+    if (blockedSent || window.top !== window) return;
+    blockedSent = true;
+    try {
+      api.runtime.sendMessage({ type: 'ytblocked' });
+    } catch (e) {
+      // Extension was updated or reloaded.
+    }
+  });
+
   document.addEventListener('adochi:hidden', (e) => {
     pending++;
     // Seconds of video ad skipped (a number, so it crosses from the page's world unchanged).

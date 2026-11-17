@@ -255,6 +255,8 @@ async function main() {
         condition: { urlFilter, resourceTypes: NOT_MAIN_FRAME },
       })),
       { id: 1000, priority: 50, action: { type: 'allow' }, condition: { ...YOUTUBE_ALLOW, resourceTypes: NOT_MAIN_FRAME } },
+      // Nothing at all is blocked inside a YouTube page or player, its ad frames included.
+      { id: 1001, priority: 50, action: { type: 'allowAllRequests' }, condition: { requestDomains: YOUTUBE_ALLOW.initiatorDomains, resourceTypes: ['main_frame', 'sub_frame'] } },
     ],
   };
   const stats = { ads: ads.size, threats: threats.size, built: new Date().toISOString().slice(0, 10) };

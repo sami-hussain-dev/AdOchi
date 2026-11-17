@@ -242,3 +242,7 @@ footer {
   color: var(--muted);
   font-size: 11px;
 }
+
+/* YouTube safe mode notice */
+.card.notice { border-color: color-mix(in srgb, #f5b83d 55%, transparent); background: color-mix(in srgb, #f5b83d 10%, var(--card, transparent)); }
+.card.notice .title { color: #c98a0b; }
