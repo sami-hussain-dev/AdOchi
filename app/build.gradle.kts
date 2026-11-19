@@ -20,8 +20,8 @@ android {
         applicationId = "com.adochi"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.3.0"
+        versionCode = 5
+        versionName = "1.4.0"
     }
 
     signingConfigs {
@@ -42,12 +42,14 @@ android {
             dimension = "dist"
             isDefault = true
             buildConfigField("boolean", "MESSAGE_GUARD", "false")
+            buildConfigField("boolean", "AD_SKIPPER", "false")
         }
-        // For the Play Store: adds automatic Message Guard.
+        // For the Play Store: adds automatic Message Guard and the Ad Skipper (Accessibility).
         create("full") {
             dimension = "dist"
             versionNameSuffix = "-full"
             buildConfigField("boolean", "MESSAGE_GUARD", "true")
+            buildConfigField("boolean", "AD_SKIPPER", "true")
         }
     }
 

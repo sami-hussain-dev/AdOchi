@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.OpenInBrowser
+import androidx.compose.material.icons.rounded.PictureInPicture
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.SportsEsports
@@ -80,6 +81,7 @@ fun SettingsScreen(onOpenApps: () -> Unit, onOpenOfflineApps: () -> Unit, onOpen
     val boot = remember(tick) { settings.startOnBoot }
     val alerts = remember(tick) { settings.threatAlerts }
     val backgroundPlay = remember(tick) { settings.backgroundPlay }
+    val pictureInPicture = remember(tick) { settings.pictureInPicture }
     val statusNotification = remember(tick) { settings.statusNotification }
     val bypassCount = remember(tick) { settings.bypassApps.size }
     val offlineCount = remember(tick) { settings.noInternetApps.size }
@@ -122,6 +124,13 @@ fun SettingsScreen(onOpenApps: () -> Unit, onOpenOfflineApps: () -> Unit, onOpen
                 tint = colors.error,
                 onClick = { settings.backgroundPlay = !backgroundPlay },
             ) { Switch(checked = backgroundPlay, onCheckedChange = { settings.backgroundPlay = it }) }
+            SettingRow(
+                icon = Icons.Rounded.PictureInPicture,
+                title = "Picture-in-picture",
+                subtitle = "Leave AdOchi while a Clean Browser video plays and it keeps playing in a small floating window.",
+                tint = colors.error,
+                onClick = { settings.pictureInPicture = !pictureInPicture },
+            ) { Switch(checked = pictureInPicture, onCheckedChange = { settings.pictureInPicture = it }) }
             SettingRow(
                 icon = Icons.Rounded.SportsEsports,
                 title = "Ad-free offline games",

@@ -61,6 +61,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.adochi.BuildConfig
 import com.adochi.browser.BrowserState
 import com.adochi.browser.CleanBrowser
 import com.adochi.ui.components.AppCard
@@ -87,7 +88,7 @@ fun rememberBrowserState(): BrowserState {
 }
 
 @Composable
-fun BrowserScreen(state: BrowserState) {
+fun BrowserScreen(state: BrowserState, pip: Boolean = false) {
     val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uris: Array<Uri>? = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
         state.fileCallback?.onReceiveValue(if (result.resultCode == Activity.RESULT_OK) uris else null)
@@ -108,11 +109,11 @@ fun BrowserScreen(state: BrowserState) {
     BackHandler(enabled = !state.canGoBack && !state.isStartPage) { state.goHome() }
 
     Column(Modifier.fillMaxSize()) {
-        AddressBar(state)
+        if (!pip) AddressBar(state)
         if (state.isStartPage) {
             StartPage(onOpen = state::open)
         } else {
-            if (state.progress < 100) {
+            if (state.progress < 100 && !pip) {
                 LinearProgressIndicator(
                     progress = { state.progress / 100f },
                     modifier = Modifier.fillMaxWidth().height(2.dp),
@@ -125,7 +126,7 @@ fun BrowserScreen(state: BrowserState) {
                 },
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
-            NavigationRow(state)
+            if (!pip) NavigationRow(state)
         }
     }
 }
@@ -240,6 +241,10 @@ private fun StartPage(onOpen: (String) -> Unit) {
         }
 
         Spacer(Modifier.height(6.dp))
+        UseLikeAppsCard()
+        Spacer(Modifier.height(10.dp))
+        AdSkipperCard()
+        if (BuildConfig.AD_SKIPPER) Spacer(Modifier.height(10.dp))
         AppCard {
             Row(verticalAlignment = Alignment.Top) {
                 IconBadge(Icons.Rounded.Shield, MaterialTheme.colorScheme.primary, size = 36.dp)
@@ -259,7 +264,8 @@ private fun StartPage(onOpen: (String) -> Unit) {
                 Spacer(Modifier.width(12.dp))
                 Text(
                     "Why not inside the Facebook or YouTube apps? Those apps load ads from the same servers as your feed and videos, " +
-                        "so no blocker can remove them without breaking the app. Use them here for a fully ad-free feed.",
+                        "so no blocker can remove them without breaking the app. Use them here for a fully ad-free feed." +
+                        if (BuildConfig.AD_SKIPPER) " In the apps themselves, the Ad Skipper above skips and mutes them." else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

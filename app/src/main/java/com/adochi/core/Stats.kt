@@ -142,6 +142,12 @@ object Stats {
         schedule()
     }
 
+    /** One ad skipped or muted by the Ad Skipper inside the YouTube / Facebook apps (its length is unknown). */
+    fun recordAppAdSkipped() {
+        synchronized(lock) { videoAdsSkipped++ }
+        schedule()
+    }
+
     fun recordScamMessage() {
         synchronized(lock) { scamMessages++ }
         schedule()

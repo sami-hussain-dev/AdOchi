@@ -82,6 +82,20 @@ object BackgroundPlayback {
 
     fun next() = runJs("(function(){var b=document.querySelector('.ytp-next-button, button[aria-label^=\"Next\"], .player-controls-next');if(b)b.click();})()")
 
+    /** In picture-in-picture only the video should show: pin it over the whole page, and undo that afterwards. */
+    fun pipLayout(on: Boolean) = runJs(
+        if (on) {
+            "(function(){var v=document.querySelector('#movie_player video, .html5-main-video, video');if(!v)return;v.classList.add('adochi-pip');" +
+                "if(!document.getElementById('adochi-pip')){var s=document.createElement('style');s.id='adochi-pip';" +
+                "s.textContent='.adochi-pip{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;" +
+                "max-width:none!important;z-index:2147483647!important;background:#000!important;object-fit:contain!important}';" +
+                "document.documentElement.appendChild(s);}})()"
+        } else {
+            "(function(){var s=document.getElementById('adochi-pip');if(s)s.remove();" +
+                "document.querySelectorAll('.adochi-pip').forEach(function(v){v.classList.remove('adochi-pip');});})()"
+        }
+    )
+
     private fun runJs(script: String) {
         main.post { webView.get()?.evaluateJavascript(script, null) }
     }
