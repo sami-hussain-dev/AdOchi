@@ -75,7 +75,13 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 private enum class SubScreen { EXCLUDED_APPS, OFFLINE_APPS, SCANNER, GUARD, REPORT, ABOUT }
 
 @Composable
-fun AppRoot(sharedText: String?, onSharedTextHandled: () -> Unit, viewUrl: String?, onViewUrlHandled: () -> Unit) {
+fun AppRoot(
+    sharedText: String?,
+    onSharedTextHandled: () -> Unit,
+    viewUrl: String?,
+    onViewUrlHandled: () -> Unit,
+    inPip: Boolean = false,
+) {
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var sub by rememberSaveable { mutableStateOf<SubScreen?>(null) }
     val showApps = sub != null
@@ -102,6 +108,12 @@ fun AppRoot(sharedText: String?, onSharedTextHandled: () -> Unit, viewUrl: Strin
 
     BackHandler(enabled = !showApps && tab != Tab.HOME && !(tab == Tab.BROWSER && !browser.isStartPage)) {
         tab = Tab.HOME
+    }
+
+    // picture-in-picture: the floating window shows only the video
+    if (inPip) {
+        if (browser.customView != null) FullscreenVideo(browser) else BrowserScreen(browser, pip = true)
+        return
     }
 
     Box(Modifier.fillMaxSize()) {

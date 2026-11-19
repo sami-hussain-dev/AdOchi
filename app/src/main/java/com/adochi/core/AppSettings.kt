@@ -91,6 +91,16 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean("background_play", true)
         set(value) = prefs.edit { putBoolean("background_play", value) }
 
+    /** Leaving the app while a Clean Browser video plays shrinks it into a floating window. */
+    var pictureInPicture: Boolean
+        get() = prefs.getBoolean("picture_in_picture", true)
+        set(value) = prefs.edit { putBoolean("picture_in_picture", value) }
+
+    /** Ad Skipper (full build): the Accessibility service still has to be switched on by the user. */
+    var adSkipper: Boolean
+        get() = prefs.getBoolean("ad_skipper", true)
+        set(value) = prefs.edit { putBoolean("ad_skipper", value) }
+
     /** Apps the user marked as trusted in the phone scan. */
     var trustedApps: Set<String>
         get() = prefs.getStringSet("trusted_apps", null)?.toSet() ?: emptySet()

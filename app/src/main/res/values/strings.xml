@@ -7,4 +7,8 @@
     <string name="shortcut_youtube_long">YouTube without ads</string>
     <string name="shortcut_facebook_short">Facebook (no ads)</string>
     <string name="shortcut_facebook_long">Facebook without ads</string>
+    <string name="share_play_adfree">Play ad-free in AdOchi</string>
+    <string name="ad_skipper_label">AdOchi Ad Skipper</string>
+    <string name="ad_skipper_summary">Skips and mutes ads in the YouTube and Facebook apps</string>
+    <string name="ad_skipper_description">AdOchi Ad Skipper taps \"Skip ad\" in the YouTube and Facebook apps as soon as it appears, and mutes ads that cannot be skipped until they end. It only looks at those two apps, stores nothing and sends nothing. AdOchi by x8code.</string>
 </resources>
