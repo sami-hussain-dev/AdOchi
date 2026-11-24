@@ -62,6 +62,9 @@ const PATH_RULES = [
   '||youtube.com/ptracking',
   '||youtube.com/get_midroll_',
   '||google.com/pagead/',
+  // ChatGPT's ad cards (the same paths are hidden by the page cleaner, in case they move).
+  '||chatgpt.com/backend-api/bazaar/*/ads',
+  '||chatgpt.com/backend-api/*/message_supplements',
 ];
 
 // YouTube checks that its own ad requests go through; when they fail, it holds the video on a black

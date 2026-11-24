@@ -78,6 +78,7 @@ import com.adochi.core.Stats
 import com.adochi.ui.components.AppCard
 import com.adochi.ui.components.IconBadge
 import com.adochi.ui.components.SectionTitle
+import com.adochi.ui.components.SOCIAL_ROW
 import com.adochi.ui.components.SiteButton
 import com.adochi.ui.components.SocialSite
 import com.adochi.ui.components.StatTile
@@ -210,7 +211,7 @@ fun HomeScreen(
         SectionTitle("Ad-free social media")
         AppCard {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                SocialSite.entries.forEach { site ->
+                SOCIAL_ROW.forEach { site ->
                     SiteButton(site, onClick = { onOpenSite(site.url) }, modifier = Modifier.weight(1f))
                 }
             }

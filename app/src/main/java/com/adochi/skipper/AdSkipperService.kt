@@ -50,10 +50,11 @@ class AdSkipperService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (event.packageName?.toString() !in AdSkipRules.APPS) return
-        // the apps fire dozens of events per second: look at the screen at most every 250 ms
+        // the apps fire dozens of events per second: look at the screen at most every 120 ms,
+        // so "Skip ad" is tapped the moment it shows
         if (!scanQueued) {
             scanQueued = true
-            main.postDelayed(scan, 250)
+            main.postDelayed(scan, 120)
         }
     }
 
@@ -95,7 +96,7 @@ class AdSkipperService : AccessibilityService() {
         }
 
         if (skip != null) {
-            if (SystemClock.elapsedRealtime() - lastClickAt > 800) {
+            if (SystemClock.elapsedRealtime() - lastClickAt > 500) {
                 lastClickAt = SystemClock.elapsedRealtime()
                 tap(skip)
             }

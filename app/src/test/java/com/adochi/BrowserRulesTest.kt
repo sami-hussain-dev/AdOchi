@@ -1,11 +1,33 @@
 package com.adochi
 
+import android.app.Application
+import android.net.Uri
 import com.adochi.browser.BrowserRules
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], application = Application::class)
 class BrowserRulesTest {
+
+    private fun tracking(url: String): Boolean {
+        val uri = Uri.parse(url)
+        return BrowserRules.isTrackingUrl(uri.host!!, uri)
+    }
+
+    @Test
+    fun chatGptAdCallsAreBlocked() {
+        assertTrue(tracking("https://chatgpt.com/backend-api/bazaar/v2/ads"))
+        assertTrue(tracking("https://chatgpt.com/backend-api/conversation/abc/message_supplements"))
+        // The chat itself keeps working.
+        assertFalse(tracking("https://chatgpt.com/backend-api/conversation"))
+        assertFalse(tracking("https://chatgpt.com/backend-api/me"))
+        assertFalse(tracking("https://chatgpt.com/c/ads-and-marketing-ideas"))
+    }
 
     @Test
     fun youTubePagesKeepTheirOwnAdChecks() {

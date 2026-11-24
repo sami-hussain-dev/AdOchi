@@ -5,7 +5,7 @@
 # AdOchi
 
 **Free ad, tracker and scam blocker for Android and every major browser.**<br>
-YouTube without ads *and without the black screen*. Facebook without sponsored posts. Scam sites stopped before they load.<br>
+YouTube without ads *and without the black screen*. ChatGPT without ads. Facebook without sponsored posts. Scam sites stopped before they load.<br>
 No account. No servers. Nothing leaves your device.
 
 [![Latest release](https://img.shields.io/github/v/release/sami-hussain-dev/AdOchi?label=release&color=0fa37f)](https://github.com/sami-hussain-dev/AdOchi/releases/latest)
@@ -31,7 +31,7 @@ In 2025–2026 YouTube started punishing ad blockers. When a blocker deletes the
 
 For signed-in viewers YouTube went further: *"Ad blockers violate YouTube's Terms of Service. Video playback is blocked"*. It looks for blocked ad requests, hidden ad boxes, ads jumped to their end and *Skip* buttons pressed by a script.
 
-AdOchi gives YouTube none of that. On YouTube it blocks no requests and hides no ad boxes in the player. The ad loads as normal and runs **muted, invisible and 16× fast**, so a 15-second ad is over in about 1 s. When YouTube's player puts the ad back to normal speed or turns the sound on, AdOchi keeps the ad fast and silent, and the player still reads back the values it set. If YouTube still refuses to play, AdOchi notices, steps back from YouTube for 6 hours and reloads the video, so **the video always plays**.
+AdOchi gives YouTube none of that. On YouTube it blocks no requests and deletes nothing. Since 1.5 it **asks YouTube for the video without ads** in the first place: the player's request carries the same setting YouTube uses for some of its own players, and YouTube's server answers with no ads at all. The video starts at once and there is nothing to detect. If an ad still comes, it runs **muted, invisible and 16× fast**, and a long ad (YouTube now also runs 1–3 minute ads) or one that stops to load is moved to its end after a second. If YouTube still refuses to play, AdOchi notices, steps back from YouTube for 6 hours and reloads the video, so **the video always plays**.
 
 **Measured in Chrome on the same videos (November 2026):**
 
@@ -39,9 +39,21 @@ AdOchi gives YouTube none of that. On YouTube it blocks no requests and hides no
 |---|---|
 | No blocker | 6 s + 66 s of ads |
 | Blockers that delete YouTube's ad data (AdOchi 1.0 too) | **8–10 s black screen** (signed-in users report it never starting) |
-| **AdOchi 1.3** | **No black screen.** Ads muted, hidden and fast-forwarded 16×: a 15 s ad is over in about 1 s. No ad → video at once |
+| AdOchi 1.3–1.4 | No black screen. Ads muted, hidden and fast-forwarded 16×: a 15 s ad is over in about 1 s, but a 3-minute ad still takes 12 s or more |
+| **AdOchi 1.5** | **No ads sent at all**: the next video starts in about 1.5–3 s. An ad that still comes, even a 3-minute one, is gone in about 1 s |
 
 And there's more than YouTube: fake ads and scam links are one of the main ways people lose their bank logins and OTP codes. AdOchi blocks them before they load, on your phone and in your browser.
+
+## What's new in 1.5
+
+- **YouTube starts at once.** AdOchi now asks YouTube for each video without ads, so no ad is sent and there is nothing to wait for. The first video of a page is loaded again the same way. Measured in Chrome: the next video plays in about 1.5–3 s, where a 3-minute ad used to hold it back.
+- **Long ads no longer hold you up.** If an ad still comes, short ones finish at 16× and long or stuck ones jump to their end after a second.
+- **YouTube's own slow-down switched off.** YouTube's ad-blocker check and its 17-second start delay are disarmed.
+- **Ad Shorts removed** from the Shorts you swipe through.
+- **No ads in ChatGPT and other AI chats.** The ads ChatGPT now shows under answers are switched off in the chat data and hidden on the page; also Microsoft Copilot, Perplexity, Gemini, Grok, Meta AI and DeepSeek. Your chats stay exactly as they are.
+- **No sponsored results on Google and Bing**, including country sites like google.com.pk.
+- **YouTube videos embedded in other sites** are cleaned too (browser extension).
+- **Android:** ChatGPT in the Clean Browser, and the Ad Skipper taps *Skip ad* faster in the YouTube app.
 
 ## What's new in 1.3
 
@@ -66,7 +78,7 @@ And there's more than YouTube: fake ads and scam links are one of the main ways 
 | | |
 |---|---|
 | 🚫 **Blocks ads in every app, browser and game** | A local DNS filter with 210,000+ ad and tracker domains. |
-| ▶️ **Clean Browser: YouTube, Facebook, Instagram, TikTok, X** | YouTube video ads skipped, Facebook *"Ad starting in 5"* breaks jumped over, sponsored posts removed. |
+| ▶️ **Clean Browser: YouTube, Facebook, Instagram, TikTok, X, ChatGPT** | YouTube without ads, Facebook *"Ad starting in 5"* breaks jumped over, sponsored posts removed, no ads under ChatGPT answers. |
 | 🎧 **Background play** | YouTube keeps playing with the screen off, with controls in the notification. |
 | 🛡️ **Stops scam, phishing and malware sites** | 370,000+ domains, with an alert that names the app that tried to open one. |
 | 🔍 **Phone scan** | Finds apps that can read your SMS/OTPs, control your screen (Accessibility), act as device admin or hide their icon. |
@@ -84,7 +96,8 @@ And there's more than YouTube: fake ads and scam links are one of the main ways 
 <td width="50%" valign="top">
 
 - **Blocking:** the same ad, tracker and scam lists, run by the browser itself (Manifest V3 `declarativeNetRequest`), so it's fast.
-- **YouTube without the black screen**, Facebook sponsored posts and video ad breaks removed.
+- **YouTube without ads and without the black screen**, Facebook sponsored posts and video ad breaks removed.
+- **AI chats without ads:** ChatGPT, Copilot, Perplexity, Gemini, Grok, Meta AI, DeepSeek. Google and Bing without sponsored results.
 - **Time saved** with one-tap sharing.
 - **Scam warning page** instead of the dangerous site.
 - **Popup controls:** blocked on this page, total, pause on one site, switch lists on and off.
@@ -183,11 +196,12 @@ You need **Node.js 20+**.
 node extension/tools/build.mjs           # downloads the lists, writes extension/dist/{chrome,firefox} + zips
 node extension/tools/build.mjs --cached  # rebuild from lists downloaded earlier
 node extension/test/e2e.mjs chrome       # loads it into headless Chrome and checks blocking, warning, popup
+node extension/test/sites.mjs chrome     # ChatGPT, Copilot, Google and Bing ad hiding on local copies of those pages
 ```
 
 The build never blocks a list of essential sites (Google, Facebook, WhatsApp, YouTube, Pakistani
 banks and wallets, government sites…), whatever a list says. It also fails if any core ad network is missing.
-On YouTube pages nothing is blocked and no ad boxes are hidden, on purpose: YouTube checks for both and then refuses to play. The page cleaner fast-forwards the ads instead.
+On YouTube pages nothing is blocked and no ad boxes are hidden, on purpose: YouTube checks for both and then refuses to play. The page cleaner asks YouTube for videos without ads instead, and fast-forwards any ad that still comes.
 
 ## Project layout
 
@@ -206,6 +220,7 @@ extension/
   src/                   extension source (manifest, background, popup, warning page)
   tools/build.mjs        list download + rule generation + packaging
   test/e2e.mjs           real-browser test
+  test/sites.mjs         real-browser test of AI chat and search ad hiding
 docs/                    README images and the download page
 ```
 

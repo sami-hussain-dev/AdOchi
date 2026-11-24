@@ -12,7 +12,7 @@ const DEFAULTS = {
   enabled: true, // master switch
   ads: true, // ad & tracker lists
   threats: true, // scam, phishing & malware lists
-  social: true, // page cleaner: sponsored posts and video ads on Facebook, YouTube...
+  social: true, // page cleaner: video ads, sponsored posts and AI chat ads on YouTube, Facebook, ChatGPT...
   paused: [], // sites where the user turned AdOchi off
   total: 0, // everything blocked since install
   savedSeconds: 0, // video ad time skipped since install
@@ -114,7 +114,9 @@ async function registerScripts(s) {
       matches,
       excludeMatches: ytSafe ? [...excludeMatches, ...YOUTUBE_PAGES] : excludeMatches,
       runAt: 'document_start',
-      // Must share the page's JavaScript to strip ad data before the video player reads it.
+      // YouTube videos embedded in other sites play in a frame of their own.
+      allFrames: true,
+      // Must share the page's JavaScript to change the player's requests before they are sent.
       world: 'MAIN',
       persistAcrossSessions: true,
     });

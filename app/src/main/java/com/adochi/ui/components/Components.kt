@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -186,7 +187,11 @@ enum class SocialSite(val label: String, val url: String, val colors: List<Color
     ),
     TIKTOK("TikTok", "https://www.tiktok.com/", listOf(Color(0xFF25F4EE), Color(0xFF111111), Color(0xFFFE2C55)), Icons.Rounded.MusicNote, null),
     X("X", "https://x.com/", listOf(Color(0xFF2A2A2A), Color(0xFF000000)), null, "X"),
+    CHATGPT("ChatGPT", "https://chatgpt.com/", listOf(Color(0xFF10A37F), Color(0xFF0B6E56)), Icons.Rounded.AutoAwesome, null),
 }
+
+/** The social sites shown side by side on the home screen (ChatGPT has its own card in the Clean Browser). */
+val SOCIAL_ROW = SocialSite.entries.filter { it != SocialSite.CHATGPT }
 
 @Composable
 fun SiteBadge(site: SocialSite, size: Dp = 56.dp) {

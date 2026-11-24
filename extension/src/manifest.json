@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "AdOchi – Ad & Scam Blocker",
   "short_name": "AdOchi",
-  "version": "1.3.0",
-  "description": "Free ad, tracker and scam blocker by x8code. Skips YouTube ads without the black screen, removes Facebook sponsored posts and video ads. Nothing leaves your device.",
+  "version": "1.5.0",
+  "description": "Free ad, tracker & scam blocker by x8code. YouTube with no ads or black screen, no ChatGPT ads, no sponsored posts. All on-device.",
   "homepage_url": "https://x8code.com",
   "icons": {
     "16": "icons/icon-16.png",
