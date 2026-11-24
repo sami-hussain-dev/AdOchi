@@ -54,9 +54,49 @@ function load(hostname) {
   return sandbox;
 }
 
-for (const host of ['m.facebook.com', 'www.facebook.com', 'm.youtube.com', 'www.instagram.com', 'x.com', 'www.tiktok.com', 'example.com']) {
+for (const host of ['m.facebook.com', 'www.facebook.com', 'm.youtube.com', 'www.youtube.com', 'www.instagram.com', 'x.com', 'www.tiktok.com',
+  'chatgpt.com', 'copilot.microsoft.com', 'www.perplexity.ai', 'www.google.com.pk', 'www.bing.com', 'example.com']) {
   load(host);
 }
+
+// YouTube: the player's request asks for the video without ads; the page's own object is not changed.
+const yt = load('m.youtube.com');
+const playerRequest = () => ({
+  videoId: 'abc', context: { client: { clientName: 'MWEB' } }, playbackContext: { contentPlaybackContext: { vis: 0 } },
+  attestationRequest: { omitBotguardData: true },
+});
+const request = playerRequest();
+assert.strictEqual(JSON.parse(yt.JSON.stringify(request)).params, 'oAEBogYBLg');
+assert.strictEqual(request.params, undefined);
+// Not touched: embeds, requests that already carry params, and anything that is not the player's request.
+const embed = playerRequest();
+embed.context.client.clientName = 'WEB_EMBEDDED_PLAYER';
+assert.strictEqual(JSON.parse(yt.JSON.stringify(embed)).params, undefined);
+const withParams = Object.assign(playerRequest(), { params: 'own' });
+assert.strictEqual(JSON.parse(yt.JSON.stringify(withParams)).params, 'own');
+const next = playerRequest();
+delete next.attestationRequest;
+assert.strictEqual(JSON.parse(yt.JSON.stringify(next)).params, undefined);
+assert.strictEqual(load('example.com').JSON.stringify(playerRequest()).includes('params'), false);
+
+// The first video's data is noted but never changed (deleting ads there gives a black screen).
+yt.ytInitialPlayerResponse = { adPlacements: [{ x: 1 }], videoDetails: { videoId: 'abc' } };
+assert.strictEqual(yt.ytInitialPlayerResponse.adPlacements.length, 1);
+
+// Ad Shorts are taken out of the list of Shorts; the others stay.
+const reels = yt.JSON.parse('{"entries":[{"command":{"reelWatchEndpoint":{"videoId":"a"}}},' +
+  '{"command":{"reelWatchEndpoint":{"adClientParams":{"isAd":true}}}},{"command":{"reelWatchEndpoint":{"videoId":"b"}}}]}');
+assert.deepStrictEqual(Array.from(reels.entries, (e) => e.command.reelWatchEndpoint.videoId), ['a', 'b']);
+
+// ChatGPT: ads are switched off in the chat data, and nothing else changes.
+const gpt = load('chatgpt.com');
+const chat = gpt.JSON.parse('{"suppress_ads":false,"x":[{"type":"ads","visibility":{"status":"allowed"}}],"messages":[{"ads":[1],"text":"hi"}],"ads":"kept"}');
+assert.strictEqual(chat.suppress_ads, true);
+assert.strictEqual(chat.x[0].visibility.status, 'hidden');
+assert.strictEqual('ads' in chat.messages[0], false);
+assert.strictEqual(chat.messages[0].text, 'hi');
+assert.strictEqual(chat.ads, 'kept');
+assert.strictEqual(load('example.com').JSON.parse('{"suppress_ads":false}').suppress_ads, false);
 
 // Ad-break lists are emptied, only on Facebook, and everything else is left alone.
 const fb = load('m.facebook.com');

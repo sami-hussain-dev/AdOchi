@@ -216,7 +216,7 @@ private fun StartPage(onOpen: (String) -> Unit) {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp),
     ) {
-        ScreenHeader("Clean Browser", "Social media without sponsored posts, video ads or trackers.")
+        ScreenHeader("Clean Browser", "Social media and AI chats without sponsored posts, video ads or trackers.")
         SocialSite.entries.forEach { site ->
             AppCard(onClick = { onOpen(site.url) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -226,9 +226,10 @@ private fun StartPage(onOpen: (String) -> Unit) {
                         Text(site.label, style = MaterialTheme.typography.titleMedium)
                         Text(
                             when (site) {
-                                SocialSite.YOUTUBE -> "Video ads skipped, promoted videos hidden"
+                                SocialSite.YOUTUBE -> "Starts at once with no ads, promoted videos hidden"
                                 SocialSite.FACEBOOK -> "Sponsored posts removed, video ad breaks skipped"
                                 SocialSite.INSTAGRAM -> "Sponsored posts removed from your feed"
+                                SocialSite.CHATGPT -> "Ads under answers removed, chats stay private"
                                 else -> "Promoted posts and trackers removed"
                             },
                             style = MaterialTheme.typography.bodySmall,

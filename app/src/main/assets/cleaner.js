@@ -46,6 +46,28 @@
     return selectors.join(',\n') + ' { display: none !important; }\n';
   }
 
+  // A wrapper that still reports "[native code]", so a page check sees nothing changed.
+  function wrap(owner, name, apply) {
+    var original = owner && owner[name];
+    if (typeof original !== 'function' || typeof Proxy !== 'function') return;
+    try {
+      owner[name] = new Proxy(original, { apply: function (target, self, args) { return apply(target, self, args); } });
+    } catch (e) { /* frozen */ }
+  }
+
+  /** Calls obj.name(...) when the page has it; undefined when it is missing or throws. */
+  function call(obj, name) {
+    try {
+      return obj && typeof obj[name] === 'function' ? obj[name].apply(obj, [].slice.call(arguments, 2)) : undefined;
+    } catch (e) {
+      return undefined;
+    }
+  }
+
+  function own(obj, key) {
+    return Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
   // Common ad slots on ordinary websites.
   addStyle(hideRule([
     'ins.adsbygoogle', '.adsbygoogle', '[id^="google_ads_iframe"]', '[id^="div-gpt-ad"]',
@@ -365,23 +387,165 @@
   }
 
   /**
-   * YouTube. Removing the ad data from the player response (the old way) is now detected: the player
-   * shows a black screen for the length of the ad, or never starts. So the ad is allowed to load and
-   * is then made invisible: muted, hidden and played at 16x. Only the "ad blockers are not allowed"
-   * message is taken out of the data, and the page's own functions are wrapped so that they still
-   * look untouched.
+   * YouTube, in four layers:
+   *  1. Ask for the video without ads. The player asks YouTube's server for every video; with the
+   *     "params" below the server itself answers without ads (YouTube uses them for some of its own
+   *     players). Nothing is deleted or blocked on the page, so there is nothing to detect and the
+   *     video starts at once. The first video of a page arrives with the page, so when it carries ads
+   *     the player is asked to load it again, which goes through this same ad-free request.
+   *  2. YouTube's own ad-blocker check and its artificial start delay are switched off.
+   *  3. Any ad that still comes is muted, hidden and played at 16x; a long or stuck one is moved to its end.
+   *  4. The "ad blockers are not allowed" message is taken out of the data and closed.
+   * Deleting the ads from the player's data (what blockers used to do) is not done: YouTube answers
+   * that with a black screen for the length of the ad.
    */
   function youtube() {
     var ENFORCEMENT = /enforcementMessageViewModel/;
+    var REEL_AD = /"isAd"\s*:\s*true/;
+    var fnText = Function.prototype.toString;
+    var nativeParse = JSON.parse;
+    var nativeStringify = JSON.stringify;
 
-    // A wrapper that still reports "[native code]", so a page check sees nothing changed.
-    function wrap(owner, name, apply) {
-      var original = owner[name];
-      if (typeof original !== 'function' || typeof Proxy !== 'function') return;
-      try {
-        owner[name] = new Proxy(original, { apply: function (target, self, args) { return apply(target, self, args); } });
-      } catch (e) { /* frozen */ }
+    // ---- 1. Ad-free request ----------------------------------------------------------------------
+
+    var NO_AD_PARAMS = 'oAEBogYBLg';
+    var MEMORY_KEY = 'adochi.youtube';
+    var REST_HOURS = 6;
+    var askedAdFree = {}; // video id -> asked for without ads
+    var askNormally = {}; // video id -> YouTube refused the ad-free request, so it is asked for the normal way
+    var answerChecked = '';
+
+    function memory() {
+      try { return nativeParse(localStorage.getItem(MEMORY_KEY) || '{}') || {}; } catch (e) { return {}; }
     }
+
+    function remember(m) {
+      try { localStorage.setItem(MEMORY_KEY, nativeStringify(m)); } catch (e) { /* storage blocked */ }
+    }
+
+    /** False for a while after YouTube refused ad-free requests twice in a row. */
+    function adFreeAllowed() {
+      return !(memory().restUntil > Date.now());
+    }
+
+    /** The player's request for a video on youtube.com or m.youtube.com (not embeds, not playlists with own params). */
+    function isPlayerRequest(body) {
+      return !!body && typeof body === 'object' && !Array.isArray(body) && !!body.attestationRequest &&
+        typeof body.videoId === 'string' && !body.params && !!body.context && !!body.context.client &&
+        /^M?WEB$/.test(String(body.context.client.clientName || '')) &&
+        !!body.playbackContext && !!body.playbackContext.contentPlaybackContext;
+    }
+
+    wrap(JSON, 'stringify', function (target, self, args) {
+      var body = args[0];
+      if (isPlayerRequest(body) && !askNormally[body.videoId] && adFreeAllowed()) {
+        // A copy, so the page's own object stays as it was.
+        var copy = {};
+        for (var k in body) if (own(body, k)) copy[k] = body[k];
+        copy.params = NO_AD_PARAMS;
+        askedAdFree[body.videoId] = true;
+        args = [copy].concat([].slice.call(args, 1));
+      }
+      return Reflect.apply(target, self, args);
+    });
+
+    function videoId(player) {
+      var data = call(player, 'getVideoData');
+      return (data && data.video_id) || new URLSearchParams(location.search).get('v') || '';
+    }
+
+    /** Where a link with "&t=1m30s" asks the video to start. */
+    function startSeconds() {
+      var t = new URLSearchParams(location.search).get('t') || '';
+      var m = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(t);
+      return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0;
+    }
+
+    /** YouTube refused the ad-free request: ask for that video again the normal way. */
+    function checkAdFreeAnswer(player) {
+      var id = videoId(player);
+      if (!id || !askedAdFree[id] || askNormally[id]) return;
+      var response = call(player, 'getPlayerResponse');
+      var status = response && response.playabilityStatus && response.playabilityStatus.status;
+      if (!status || (response.videoDetails && response.videoDetails.videoId !== id)) return;
+      var m;
+      if (status === 'OK') {
+        if (answerChecked === id) return;
+        answerChecked = id;
+        m = memory();
+        if (m.refused) {
+          m.refused = 0;
+          remember(m);
+        }
+        return;
+      }
+      // Age checks and sign-in walls are not about ads.
+      if (status !== 'UNPLAYABLE' && status !== 'ERROR') return;
+      askNormally[id] = true;
+      m = memory();
+      m.refused = (m.refused || 0) + 1;
+      if (m.refused >= 2) {
+        m.refused = 0;
+        m.restUntil = Date.now() + REST_HOURS * 3600 * 1000;
+      }
+      remember(m);
+      call(player, 'loadVideoById', id, startSeconds());
+    }
+
+    // The first video comes inside the page. Its ads are noted (never deleted), and the player then
+    // loads the same video again through the ad-free request.
+    var firstHasAds = false;
+    var firstReloaded = false;
+    try {
+      var firstResponse;
+      Object.defineProperty(window, 'ytInitialPlayerResponse', {
+        configurable: true,
+        enumerable: true,
+        get: function () { return firstResponse; },
+        set: function (value) {
+          firstResponse = value;
+          firstHasAds = !!value && typeof value === 'object' &&
+            ['adPlacements', 'adSlots', 'playerAds'].some(function (k) { return Array.isArray(value[k]) && value[k].length > 0; });
+        },
+      });
+    } catch (e) { /* already defined by the page */ }
+
+    function reloadFirstVideo(player) {
+      if (!firstHasAds || firstReloaded) return;
+      // In a playlist the reload would lose the list, so there the ads are skipped instead.
+      if (location.pathname !== '/watch' || /[?&]list=/.test(location.search) || !adFreeAllowed()) {
+        firstReloaded = true;
+        return;
+      }
+      var id = videoId(player);
+      if (!id || typeof player.loadVideoById !== 'function') return;
+      firstReloaded = true;
+      call(player, 'loadVideoById', id, startSeconds());
+      report(15);
+    }
+
+    // ---- 2. YouTube's ad-blocker check and start delay -------------------------------------------
+
+    // The check hands what it found to a callback named onAbnormalityDetected; it gets one that does nothing.
+    var ABNORMAL = /onAbnormalityDetected/;
+    if (typeof Promise === 'function') {
+      wrap(Promise.prototype, 'then', function (target, self, args) {
+        if (typeof args[0] === 'function') {
+          try { if (ABNORMAL.test(fnText.call(args[0]))) args[0] = function () {}; } catch (e) { /* unreadable */ }
+        }
+        return Reflect.apply(target, self, args);
+      });
+    }
+
+    // The delay is a 17-second timer before the video may start; it is cut to a moment.
+    wrap(window, 'setTimeout', function (target, self, args) {
+      if (args[1] === 17000 && typeof args[0] === 'function') {
+        try { if (fnText.call(args[0]).indexOf('[native code]') >= 0) args[1] = 17; } catch (e) { /* unreadable */ }
+      }
+      return Reflect.apply(target, self, args);
+    });
+
+    // ---- 4. "Ad blockers are not allowed" in the data; ad entries between Shorts ------------------
 
     function dropEnforcement(obj, depth) {
       if (!obj || typeof obj !== 'object' || depth > 12) return;
@@ -391,17 +555,55 @@
         report();
       }
       for (var k in obj) {
-        if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] && typeof obj[k] === 'object') dropEnforcement(obj[k], depth + 1);
+        if (own(obj, k) && obj[k] && typeof obj[k] === 'object') dropEnforcement(obj[k], depth + 1);
+      }
+    }
+
+    function isReelAd(entry) {
+      var endpoint = entry && entry.command && entry.command.reelWatchEndpoint;
+      return !!(endpoint && endpoint.adClientParams && endpoint.adClientParams.isAd);
+    }
+
+    /** Takes the ad Shorts out of the list of Shorts to swipe through. */
+    function dropReelAds(obj, depth) {
+      if (!obj || typeof obj !== 'object' || depth > 8) return;
+      if (Array.isArray(obj)) {
+        for (var i = obj.length - 1; i >= 0; i--) {
+          if (isReelAd(obj[i])) {
+            obj.splice(i, 1);
+            report();
+          } else {
+            dropReelAds(obj[i], depth + 1);
+          }
+        }
+        return;
+      }
+      for (var k in obj) {
+        if (own(obj, k) && obj[k] && typeof obj[k] === 'object') dropReelAds(obj[k], depth + 1);
       }
     }
 
     wrap(JSON, 'parse', function (target, self, args) {
       var result = Reflect.apply(target, self, args);
-      if (typeof args[0] === 'string' && ENFORCEMENT.test(args[0])) {
-        try { dropEnforcement(result, 0); } catch (e) { /* leave data as is */ }
+      if (typeof args[0] === 'string') {
+        try {
+          if (ENFORCEMENT.test(args[0])) dropEnforcement(result, 0);
+          if (REEL_AD.test(args[0])) dropReelAds(result, 0);
+        } catch (e) { /* leave data as is */ }
       }
       return result;
     });
+
+    if (window.Response && Response.prototype) {
+      wrap(Response.prototype, 'json', function (target, self, args) {
+        var promise = Reflect.apply(target, self, args);
+        if (!/\/youtubei\/v1\/reel\//.test((self && self.url) || '')) return promise;
+        return promise.then(function (data) {
+          try { dropReelAds(data, 0); } catch (e) { /* leave data as is */ }
+          return data;
+        });
+      });
+    }
 
     addStyle(hideRule([
       'ytm-promoted-sparkles-web-renderer', 'ytm-promoted-video-renderer', 'ytm-companion-ad-renderer',
@@ -417,17 +619,22 @@
     addStyle(hideRule([
       'ytm-rich-item-renderer:has(ad-slot-renderer)', 'ytm-item-section-renderer:has(ad-slot-renderer)',
       'ytd-rich-item-renderer:has(ytd-ad-slot-renderer)', 'ytd-rich-section-renderer:has(ytd-statement-banner-renderer)',
-      'tp-yt-paper-dialog:has(ytd-enforcement-message-view-model)'
+      'tp-yt-paper-dialog:has(ytd-enforcement-message-view-model)', 'ytd-reel-video-renderer:has(ytd-ad-slot-renderer)'
     ]));
     // While an ad runs, nothing of it is shown (it is over in a moment anyway).
     addStyle('.ad-showing video, .ad-interrupting video, .ad-showing .video-ads, .ad-showing .ytp-ad-player-overlay,' +
       ' .ad-showing .ytp-ad-player-overlay-layout { opacity: 0 !important; }\n');
 
+    // ---- 3. Ads that still come -----------------------------------------------------------------
+
     // Ads are muted, hidden and played at the top speed the browser allows (16x in Chrome, Edge,
-    // Firefox and the Android WebView), so a 15 s ad is over in about 1 s. No seeking and no clicks:
-    // YouTube ignores scripted clicks on Skip, and an ad that jumps to its end is easy to spot.
+    // Firefox and the Android WebView), so a 15 s ad is over in about 1 s. An ad that would still
+    // take long at that speed (YouTube also runs 1-3 minute ads), or that stops to load, is moved to
+    // its end after a second.
     var AD_RATES = [16, 10, 8, 4, 2];
     var adRate = AD_RATES[0];
+    var LONG_AT_SPEED = 3; // seconds
+    var STUCK_MS = 1500;
 
     /*
      * While an ad runs, its speed and sound belong to AdOchi. YouTube's player puts them back to 1x
@@ -481,7 +688,7 @@
       }
     }
 
-    var ad = null; // { video, saved, want, wrote } while an ad runs
+    var ad = null; // { video, saved, want, wrote, since, lastTime, lastMove, jumped } while an ad runs
     // The viewer's speed for the video. YouTube sets 1x as an ad starts, before AdOchi sees the ad.
     var videoRate = 1;
     var counted = '';
@@ -490,7 +697,11 @@
     function startAd(video) {
       var rate = videoRate;
       var muted = getNative(video, 'muted');
-      ad = { video: video, saved: { playbackRate: rate, muted: muted }, want: { playbackRate: rate, muted: muted }, wrote: {} };
+      var now = Date.now();
+      ad = {
+        video: video, saved: { playbackRate: rate, muted: muted }, want: { playbackRate: rate, muted: muted }, wrote: {},
+        since: now, lastTime: -1, lastMove: now, jumped: 0
+      };
       if (held) held.set(video, ad);
       counted = '';
     }
@@ -528,6 +739,22 @@
       return el ? seconds(el.textContent) : 0;
     }
 
+    /** Moves the running ad to its end, never the video itself. */
+    function jumpToEnd(player, video) {
+      ad.jumped = Date.now();
+      var stats = call(player, 'getStatsForNerds');
+      var length = +(((call(player, 'getPlayerResponse') || {}).videoDetails || {}).lengthSeconds) || 0;
+      if (/^SSAP, AD/.test(String((stats && stats.debug_info) || ''))) {
+        // The ad is stitched into the video's own stream: the player's seek moves past it.
+        var progress = call(player, 'getProgressState');
+        if (progress && progress.duration > 0 && (!length || progress.duration < length - 3)) call(player, 'seekTo', progress.duration);
+        return;
+      }
+      // A separate ad clip. A clip as long as the video is the video, so it is left alone.
+      if (!(isFinite(video.duration) && video.duration > 0) || (length && Math.abs(video.duration - length) < 3)) return;
+      try { video.currentTime = Math.max(video.duration - 0.1, 0); } catch (e) { /* not seekable yet */ }
+    }
+
     function tick() {
       var player = playerNode();
       var video = player ? player.querySelector('video') : document.querySelector('video');
@@ -550,6 +777,14 @@
         // An ad stitched into the stream reports the whole video's length, so the ad's own timer is used.
         report(rest > 0 ? rest : Math.min(video.duration - video.currentTime, 180));
       }
+      var time = Date.now();
+      if (video.currentTime !== ad.lastTime) {
+        ad.lastTime = video.currentTime;
+        ad.lastMove = time;
+      }
+      var long = (video.duration - video.currentTime) / adRate > LONG_AT_SPEED;
+      var stuck = time - ad.lastMove > STUCK_MS;
+      if (time - ad.since > 1000 && time - ad.jumped > 1500 && (long || stuck)) jumpToEnd(player, video);
     }
 
     /** "Ad blockers are not allowed" pop-up over a playing video: close it and keep the video going. */
@@ -582,8 +817,8 @@
 
     // React the moment the player switches into an ad, and keep checking in case an event is missed.
     // ratechange and volumechange catch a speed or sound reset where holding them is not possible,
-    // loadstart the next ad of a break.
-    ['loadstart', 'loadedmetadata', 'durationchange', 'play', 'playing', 'ratechange', 'volumechange'].forEach(function (name) {
+    // loadstart the next ad of a break, timeupdate an ad that stops moving.
+    ['loadstart', 'loadedmetadata', 'durationchange', 'play', 'playing', 'ratechange', 'volumechange', 'timeupdate'].forEach(function (name) {
       document.addEventListener(name, function (e) { if (e.target && e.target.tagName === 'VIDEO') tick(); }, true);
     });
     var classWatch = new MutationObserver(tick);
@@ -595,11 +830,194 @@
         classWatch.disconnect();
         classWatch.observe(player, { attributes: true, attributeFilter: ['class'] });
       }
+      if (player) {
+        reloadFirstVideo(player);
+        checkAdFreeAnswer(player);
+      }
       tick();
       checkBlocked();
       closeEnforcement();
     }, 250);
   }
+
+  /**
+   * Ads in AI chats (ChatGPT, Copilot, Perplexity, Gemini, Grok, Meta AI, DeepSeek). Found three ways:
+   * known ad boxes by their markup, the ad data in the chat itself (ChatGPT), and as a last resort the
+   * small "Sponsored" / "Ad" label or ChatGPT's "Ads do not influence the answers" note. From a label
+   * the ad box around it is hidden: the largest small box that holds no part of the real answer.
+   */
+  function aiChatAds(cfg) {
+    if (cfg.css) addStyle(hideRule(cfg.css));
+    // :has() in its own rule so older browsers only drop this one.
+    if (cfg.cssHas) addStyle(hideRule(cfg.cssHas));
+
+    var labels = {};
+    (cfg.labels || []).forEach(function (w) { labels[w.toLowerCase()] = true; });
+    var CONTENT = cfg.content;
+    var NEVER = 'nav, header, [role="navigation"], [role="banner"], [role="dialog"]';
+    var MAX_TEXT = 700;
+    var MAX_HEIGHT = 560;
+
+    function isSmall(el) {
+      return (el.textContent || '').length <= MAX_TEXT && el.getBoundingClientRect().height <= MAX_HEIGHT;
+    }
+
+    /** The ad box around a label: grows until the next step would take in the answer or get big. */
+    function adBoxOf(anchor) {
+      var node = anchor;
+      while (node.parentElement && node.parentElement !== document.body && node.parentElement !== document.documentElement) {
+        var parent = node.parentElement;
+        if (parent.matches(CONTENT) || parent.querySelector(CONTENT) || !isSmall(parent)) break;
+        node = parent;
+      }
+      return node;
+    }
+
+    function hideAd(anchor, needsLink) {
+      if (!anchor || anchor.closest(NEVER)) return;
+      var box = adBoxOf(anchor);
+      // A bare word with no link or picture next to it is not an ad box.
+      if (needsLink && !box.querySelector('a[href], img, [role="link"]')) return;
+      hide(box);
+    }
+
+    function isLabel(el) {
+      var text = (el.textContent || '').replace(/[​-‏﻿]/g, '').trim().toLowerCase();
+      return text.length < 20 && labels[text] === true;
+    }
+
+    function scan(root) {
+      if (!root || root.nodeType !== 1 || root.__adochiHidden) return;
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+      var node;
+      while ((node = walker.nextNode())) {
+        var text = node.nodeValue;
+        var el = node.parentElement;
+        if (!el || text.length > 160) continue;
+        if (cfg.note && cfg.note.test(text.trim())) {
+          hideAd(el, false);
+        } else if (text.length < 20 && isLabel(el) && el.children.length === 0 && !el.closest(CONTENT)) {
+          hideAd(el, true);
+        }
+      }
+      if (cfg.buttons) {
+        root.querySelectorAll('[aria-label]').forEach(function (el) {
+          if (cfg.buttons.test(el.getAttribute('aria-label') || '')) hideAd(el, false);
+        });
+      }
+    }
+
+    var pending = [];
+    var timer = null;
+    function flush() {
+      timer = null;
+      var batch = pending;
+      pending = [];
+      batch.forEach(function (n) { if (n.isConnected) scan(n); });
+    }
+    function queue(node) {
+      pending.push(node);
+      if (!timer) timer = setTimeout(flush, 120);
+    }
+    new MutationObserver(function (mutations) {
+      mutations.forEach(function (m) {
+        m.addedNodes.forEach(function (n) {
+          if (n.nodeType === 1) queue(n);
+          else if (n.nodeType === 3 && n.parentElement) queue(n.parentElement);
+        });
+      });
+    }).observe(document, { childList: true, subtree: true });
+    document.addEventListener('DOMContentLoaded', function () { queue(document.body); });
+  }
+
+  /**
+   * ChatGPT sends its ads inside the chat data. They are marked hidden there before the page reads
+   * them: "suppress_ads" is switched on, ad blocks are set to hidden and ad HTML is left out.
+   */
+  function chatGptAdData() {
+    var AD_DATA = /"suppress_ads"|"type"\s*:\s*"ads"|"renderedAdsHtml"|"ads"\s*:/;
+    var AD_ALLOWED = /"type":"ads","visibility":\{"status":"allowed"/g;
+    var AD_HTML = /<template data-assistant-ads-html=""><aside aria-label[\s\S]+?<\/aside><\/template>/g;
+
+    function walk(obj, depth, inMessages) {
+      if (!obj || typeof obj !== 'object' || depth > 30) return;
+      if (Array.isArray(obj)) {
+        for (var i = 0; i < obj.length; i++) walk(obj[i], depth + 1, inMessages);
+        return;
+      }
+      if (own(obj, 'suppress_ads') && obj.suppress_ads !== true) obj.suppress_ads = true;
+      if (obj.type === 'ads' && obj.visibility && typeof obj.visibility === 'object' && obj.visibility.status !== 'hidden') {
+        obj.visibility.status = 'hidden';
+        report();
+      }
+      if (own(obj, 'renderedAdsHtml')) delete obj.renderedAdsHtml;
+      if (inMessages && own(obj, 'ads')) {
+        delete obj.ads;
+        report();
+      }
+      for (var k in obj) {
+        if (own(obj, k) && obj[k] && typeof obj[k] === 'object') walk(obj[k], depth + 1, k === 'messages');
+      }
+    }
+
+    wrap(JSON, 'parse', function (target, self, args) {
+      var result = Reflect.apply(target, self, args);
+      if (typeof args[0] === 'string' && AD_DATA.test(args[0])) {
+        try { walk(result, 0, false); } catch (e) { /* leave data as is */ }
+      }
+      return result;
+    });
+
+    // Answers stream in as text before they are parsed; ad blocks in that text are marked hidden too.
+    if (window.TextDecoder && TextDecoder.prototype) {
+      wrap(TextDecoder.prototype, 'decode', function (target, self, args) {
+        var text = Reflect.apply(target, self, args);
+        if (typeof text === 'string' && text.indexOf('ads') >= 0) {
+          text = text.replace(AD_ALLOWED, '"type":"ads","visibility":{"status":"hidden"').replace(AD_HTML, '');
+        }
+        return text;
+      });
+    }
+  }
+
+  var AI_CONTENT = '.markdown, .prose, [class*="markdown"], textarea, [contenteditable="true"], form';
+  var AI_LABELS = ['Sponsored', 'Ad', 'Ads', 'Promoted'];
+
+  var CHATGPT = {
+    css: [
+      'section[data-conversation-ads-supplement]', 'aside[data-assistant-ads-unit]', 'div[data-assistant-ads]',
+      '[data-testid="bazaar-v2-elevated-box"]', '[data-testid="bazaar-single-card-container"]', '[class*="_assistantAds"]',
+      'a[rel][target="_blank"][href*="&oppref="]'
+    ],
+    cssHas: [
+      'div[data-message-supplement]:has(aside[data-partial-island="assistant-ads"])', 'section:has(> [aria-label="Sponsored"])',
+      'div[role="complementary"]:has(a[href*="oppref="])',
+      '.border-token-border-default.mt-2.border-t:has(button[aria-label="Ad options"])',
+      'div.opacity-100.transition-opacity.ease-out:has(button[aria-label="Sponsored options"], button[aria-label="Ad options"])'
+    ],
+    note: /^ads do not influence the answers/i,
+    buttons: /^(ad|sponsored) options$/i,
+    labels: AI_LABELS,
+    content: AI_CONTENT
+  };
+
+  var COPILOT = {
+    css: ['.b_ad', 'div[data-testid="ads-card"]'],
+    cssHas: ['div[aria-live="polite"][aria-atomic="true"]:has(span[data-ad-part="title"])'],
+    buttons: /^(ad|sponsored) (options|info)$/i,
+    labels: AI_LABELS,
+    content: AI_CONTENT
+  };
+
+  var AI_GENERIC = { buttons: /^(ad|sponsored) (options|info)$/i, labels: AI_LABELS, content: AI_CONTENT };
+
+  /** Sponsored results on Google and Bing (the AI answers on top of the results included). */
+  var GOOGLE_ADS = [
+    '#tads', '#tadsb', '#bottomads', '#google-s-ad', 'div[data-text-ad]', 'div[data-is-ad="1"]', 'div[data-section-type="ads"]',
+    'div[data-ads-title="1"]', 'div[data-is-promoted-hotel-ad="true"]', '.commercial-unit-desktop-rhs:not(.mnr-c)',
+    '.commercial-unit-mobile-top > div[data-pla="1"]', 'a[href^="https://www.googleadservices.com/pagead/aclk?"]'
+  ];
+  var BING_ADS = ['.b_ad', '.b_adBottom', '.ad_sc', '#b_wt_adepd', '.adsMvCarousel'];
 
   if (on('youtube.com')) youtube();
 
@@ -640,5 +1058,19 @@
       containers: ['[data-e2e="recommend-list-item-container"]', 'article'],
       layoutFallback: false
     });
+  }
+
+  if (on('chatgpt.com') || on('chat.openai.com')) {
+    chatGptAdData();
+    aiChatAds(CHATGPT);
+  }
+  if (on('copilot.microsoft.com') || on('copilot.com')) aiChatAds(COPILOT);
+  if (on('perplexity.ai') || on('gemini.google.com') || on('grok.com') || on('meta.ai') || on('chat.deepseek.com')) aiChatAds(AI_GENERIC);
+
+  if (/^(www\.)?google\.(com?\.)?[a-z]{2,3}$/.test(hostname)) addStyle(hideRule(GOOGLE_ADS));
+  if (on('bing.com')) {
+    addStyle(hideRule(BING_ADS));
+    addStyle(hideRule(['.slide:has(.rtb_ad_caritem_mvtr)']));
+    aiChatAds(COPILOT);
   }
 })();

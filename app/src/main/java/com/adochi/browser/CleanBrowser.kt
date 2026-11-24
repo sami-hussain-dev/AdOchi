@@ -228,6 +228,9 @@ object BrowserRules {
                 path.startsWith("/api/stats/ads") || path.startsWith("/pagead/") ||
                     path == "/ptracking" || path.startsWith("/get_midroll_")
             host.endsWith("google.com") -> path.startsWith("/pagead/")
+            // ChatGPT's ad cards (also hidden by the page script, in case these paths move)
+            host == "chatgpt.com" ->
+                path.startsWith("/backend-api/") && (path.contains("/bazaar/") && path.endsWith("/ads") || path.endsWith("/message_supplements"))
             else -> false
         }
     }
